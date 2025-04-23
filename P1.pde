@@ -30,7 +30,7 @@ SoundFile bgMusic;
 boolean musicEnabled = true;
 float musicVolume = 0.4f; 
 float currentMusicVolume = 0.0f; 
-float fadeSpeed = 0.001f; 
+float fadeSpeed = 0.01f; // Increased from 0.001f for faster fading
 boolean fadingIn = true; 
 boolean useProceduralGeneration = true; // Flag to use procedural generation
 
@@ -81,92 +81,6 @@ void setup() {
   // Initialize and generate a new level
   initializeLevel();
   
-  // // Create enemies on both sides with FSM-based behaviors, including enemy type
-  // Enemy enemy1 = new Enemy(new PVector(width / 4, height - 30), character, 1);
-  // Enemy enemy2 = new Enemy(new PVector(width * 3 / 4, height - 30), character, 2);
-  // Enemy enemy3 = new Enemy(new PVector(width * 0.35f, height - 330 - 20), character, 3); 
-  // Enemy enemy4 = new Enemy(new PVector(width * 0.65f, height - 330 - 20), character, 4); 
-
-  // enemies.add(enemy1);
-  // enemies.add(enemy2);
-  // enemies.add(enemy3);
-  // enemies.add(enemy4);
-
-  // // Configure initial states
-  // enemies.get(0).fsm.forceState(EnemyState.PATROL);
-  // enemies.get(1).fsm.forceState(EnemyState.PATROL);
-  // enemies.get(2).fsm.forceState(EnemyState.IDLE);
-  // enemies.get(3).fsm.forceState(EnemyState.PATROL);
-
-  // float platformWidth = 32; // width of platform_through.png
-    
-  // // Create platforms for vertical traversal 
-  // // First layer - low platforms 
-  // platforms.add(new PlatformObject(width * 0.25f - platformWidth, height - 150)); 
-  // platforms.add(new PlatformObject(width * 0.25f, height - 150));                
-  // platforms.add(new PlatformObject(width * 0.25f + platformWidth, height - 150));
-  
-  // platforms.add(new PlatformObject(width * 0.75f - platformWidth, height - 150)); 
-  // platforms.add(new PlatformObject(width * 0.75f, height - 150));                 
-  // platforms.add(new PlatformObject(width * 0.75f + platformWidth, height - 150));
-  
-  // // Second layer - middle platforms 
-  // platforms.add(new PlatformObject(width * 0.5f - platformWidth, height - 270));
-  // platforms.add(new PlatformObject(width * 0.5f, height - 270));                
-  // platforms.add(new PlatformObject(width * 0.5f + platformWidth, height - 270)); 
-  
-  // // Third layer - higher platforms
-  // platforms.add(new PlatformObject(width * 0.35f - platformWidth, height - 330)); 
-  // platforms.add(new PlatformObject(width * 0.35f, height - 330));                 
-  // platforms.add(new PlatformObject(width * 0.35f + platformWidth, height - 330)); 
-  
-  // platforms.add(new PlatformObject(width * 0.65f - platformWidth, height - 330)); 
-  // platforms.add(new PlatformObject(width * 0.65f, height - 330));                
-  // platforms.add(new PlatformObject(width * 0.65f + platformWidth, height - 330)); 
-  
-  // // Fourth layer - high platforms 
-  // platforms.add(new PlatformObject(width * 0.5f - platformWidth, height - 410)); 
-  // platforms.add(new PlatformObject(width * 0.5f, height - 490));                 
-  // platforms.add(new PlatformObject(width * 0.5f + platformWidth, height - 410)); 
-  
-  // // Add springs at strategic locations 
-  // springs.add(new Spring(new PVector(width * 0.15f, height - 20))); // Left lower spring
-  // springs.add(new Spring(new PVector(width * 0.85f, height - 20))); // Right lower spring
-  // springs.add(new Spring(new PVector(width * 0.5f, height - 150))); // Middle spring on first platform
-  
-  // // Add a coin on the top platform
-  // coins.add(new Coin(new PVector(width * 0.5f, height - 510 - 10))); 
-
-  // Setup pathfinding
-  // setupPathfinding();
-  
-  // Add objects to physics engine
-  // physicsEngine.addObject(character);
-  // for (Enemy enemy : enemies) {
-  //   physicsEngine.addObject(enemy);
-  // }
-  
-  // for (Spring spring : springs) {
-  //   physicsEngine.addObject(spring);
-  // }
-  
-  // for (PlatformObject platform : platforms) {
-  //   physicsEngine.addObject(platform);
-  // }
-  
-  // // Add force generators
-  // GravityForce gravity = new GravityForce(1.5f);
-  // DragForce drag = new DragForce(0.01f);
-  
-  // // Apply forces to character
-  // physicsEngine.addForceGenerator(character, gravity);
-  // physicsEngine.addForceGenerator(character, drag);
-  
-  // // Apply forces to enemies
-  // for (Enemy enemy : enemies) {
-  //   physicsEngine.addForceGenerator(enemy, gravity);
-  //   physicsEngine.addForceGenerator(enemy, drag);
-  // }
 }
 
 // Use this function to initialize and use the level generator
@@ -572,20 +486,25 @@ void draw() {
 
 // Function to handle music fade in/out
 void updateMusicFade() {
-  if (fadingIn && musicEnabled) {
-    // Fade in
+  if (musicEnabled) {
+    // Always fade in when music is enabled
     currentMusicVolume += fadeSpeed;
     if (currentMusicVolume >= musicVolume) {
       currentMusicVolume = musicVolume;
       fadingIn = false;
     }
     bgMusic.amp(currentMusicVolume);
-  } else if (!fadingIn && !musicEnabled) {
-    // Fade out
+    
+    // Make sure music is playing
+    if (!bgMusic.isPlaying()) {
+      bgMusic.loop();
+    }
+  } else {
+    // Always fade out when music is disabled
     currentMusicVolume -= fadeSpeed;
     if (currentMusicVolume <= 0) {
       currentMusicVolume = 0;
-      bgMusic.pause();
+      bgMusic.pause(); // This should now be reached more quickly
     }
     bgMusic.amp(currentMusicVolume);
   }

@@ -35,7 +35,7 @@ class PathFinder {
     openSetPositions.clear();
     
     // Check if the path request is reasonable
-    float maxPathDistance = 400.0f; // Maximum world distance for path search
+    float maxPathDistance = 800.0f; // Maximum world distance for path search
     if (PVector.dist(startPos, goalPos) > maxPathDistance) {
       println("Warning: Path requested is too long, returning empty path");
       return new Path();
