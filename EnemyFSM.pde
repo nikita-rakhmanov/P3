@@ -324,6 +324,10 @@ class ChaseStateHandler implements EnemyStateHandler {
         weight = 0.4f;
         enemy.steeringController.addBehavior(new Flee(enemy.player.position, 1f, 100), 0.6f);
         break;
+      case 5: // Spearman enemy - slower than assassin type 1
+        acceleration = 0.7f; // Lower acceleration than type 1
+        weight = 1.0f;
+        break;
     }
     
     enemy.steeringController.addBehavior(
@@ -363,6 +367,10 @@ class ChaseStateHandler implements EnemyStateHandler {
         arrivalRadius = 20.0f;
         weight = 0.7f;
         enemy.steeringController.addBehavior(new Flee(enemy.player.position, 0.4f, 80), 0.25f);
+        break;
+      case 5: // Spearman - slower than assassin type 1
+        acceleration = 0.8f; // Lower acceleration
+        arrivalRadius = 14.0f; // Slightly higher than assassin
         break;
     }
     
@@ -447,6 +455,10 @@ class ChaseStateHandler implements EnemyStateHandler {
       case 4: // Evasive - prefers to keep distance and gives up chase easily
         attackRange = 20.0f;
         giveUpRange = 90.0f;
+        break;
+      case 5: // Spearman - slightly longer attack range due to spear
+        attackRange = 40.0f; // Longer attack range than assassin
+        giveUpRange = 250.0f; // Gives up a bit sooner than assassin
         break;
     }
     

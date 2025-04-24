@@ -36,7 +36,7 @@ boolean fadingIn = true;
 boolean useProceduralGeneration = true; // Flag to use procedural generation
 ArrayList<Ammo> ammoPickups = new ArrayList<Ammo>();
 LevelExit levelExit;
-int currentLevel = 1; // Current level number
+int currentLevel = 2; // Current level number
 boolean inLevelTransition = false;
 boolean cameraFocusOnExit = false;
 long cameraFocusStartTime = 0;
@@ -47,6 +47,7 @@ float savedCameraZoom = 1.0f;
 boolean pendingExitActivation = false;
 long exitActivationTime = 0;
 final long EXIT_ACTIVATION_DELAY = 1000; // Delay in milliseconds before activating exit
+EnemySpawner enemySpawner;
 
 class PlatformObject extends PhysicsObject {
   PImage platformImage;
@@ -156,51 +157,64 @@ void initializeLevel1() {
 }
 
 void initializeLevel2() {
-  println("Initializing Level 2...");
+  println("Initializing Level 2 (Perlin Noise with Enemy Waves)...");
   
-  // Use the samurai environment ground texture
-  ground = new Platform("PixelArt_Samurai/Environment/PNG/Environment_Ground.png");
+  // Clear all game objects
+  platforms.clear();
+  springs.clear();
+  enemies.clear();
+  coins.clear();
+  ammoPickups.clear();
+  healthPacks.clear();
   
-  // Create a different background
-  bg = new Background("PixelArt_Samurai/Environment/PNG/Environment_Back_Mountain.png");
-
-   float platformWidth = 32;
+  // Use the Perlin noise background (or whichever version you prefer)
+  bg = new PerlinNoiseBackground();
   
-  // Add a few scattered platforms
-  // Center platform structure
-  platforms.add(new PlatformObject(width * 0.5f, height - 200));
-  platforms.add(new PlatformObject(width * 0.5f + platformWidth, height - 200));
-  platforms.add(new PlatformObject(width * 0.5f - platformWidth, height - 200));
+  // Create a custom Platform class for level 2 ground at the correct height
+  class Level2Ground extends Platform {
+    Level2Ground(String imgPath) {
+      super(imgPath);
+    }
+    
+    // Override the display method to position the ground correctly
+    void display() {
+      for (int x = 0; x < width; x += img.width) {
+        // Position the ground at the very bottom of the screen
+        image(img, x + img.width/2, height + 10);
+      }
+    }
+  }
   
-  // Left platform
-  platforms.add(new PlatformObject(width * 0.2f, height - 150));
-  platforms.add(new PlatformObject(width * 0.2f + platformWidth, height - 150));
+  // Use the samurai environment ground texture with correct positioning
+  ground = new Level2Ground("PixelArt_Samurai/Environment/PNG/Environment_Ground.png");
   
-  // Right platform
-  platforms.add(new PlatformObject(width * 0.8f, height - 150));
-  platforms.add(new PlatformObject(width * 0.8f - platformWidth, height - 150));
+  // Place the player at the true ground level
+  character.position = new PVector(width * 0.5f, height - character.radius);
+  character.velocity = new PVector(0, 0);
   
-  // Upper platforms
-  platforms.add(new PlatformObject(width * 0.35f, height - 300));
-  platforms.add(new PlatformObject(width * 0.65f, height - 300));
+  // Initialize the enemy spawner with references to the global object lists
+  enemySpawner = new EnemySpawner(character, enemies);
+  // Add references to the item lists
+  enemySpawner.ammoPickups = ammoPickups;
+  enemySpawner.healthPacks = healthPacks;
   
-  // Add a spring
-  springs.add(new Spring(new PVector(width * 0.5f, height - 20)));
+  // Configure physics engine with minimal objects
+  setupPhysicsEngine();
+  setupPathfinding();
   
-  // Add a single enemy as a challenge
-  Enemy enemy = new Enemy(new PVector(width * 0.8f, height - 30), character, 2);
-  enemy.fsm.forceState(EnemyState.PATROL);
-  enemies.add(enemy);
-  
-  // Add some ammo pickups
-  ammoPickups.add(new Ammo(new PVector(width * 0.2f, height - 180)));
-  ammoPickups.add(new Ammo(new PVector(width * 0.65f, height - 330)));
-  
-  // Add a health pack
-  healthPacks.add(new HealthPack(new PVector(width * 0.35f, height - 330)));
-  
-  // No exit in this level for now
-  levelExit = null;
+  // Start spawning enemies after a short delay
+  Thread enemySpawnerThread = new Thread(new Runnable() {
+    public void run() {
+      try {
+        // Wait 3 seconds before starting to spawn enemies
+        Thread.sleep(3000);
+        enemySpawner.start();
+      } catch (InterruptedException e) {
+        e.printStackTrace();
+      }
+    }
+  });
+  enemySpawnerThread.start();
 }
 
 // Create the fixed level (your original level design)
@@ -535,6 +549,11 @@ void draw() {
     character.update();
     for (Enemy enemy : enemies) {
       enemy.update();
+    }
+
+    // Update enemy spawner if in level 2 and game is active
+    if (currentLevel == 2 && gameStarted && !gameOver && enemySpawner != null) {
+      enemySpawner.update();
     }
     
     // Update and check coins 
@@ -901,6 +920,11 @@ void drawGameObjects() {
   // Draw the level exit if it exists
   if (levelExit != null) {
     levelExit.draw();
+  }
+
+  // Draw spawn effects if we're in level 2
+  if (currentLevel == 2 && enemySpawner != null) {
+    enemySpawner.drawEffects();
   }
 }
 

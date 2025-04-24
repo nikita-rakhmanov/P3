@@ -18,7 +18,7 @@ class Enemy extends PhysicsObject {
     public EnemyFSM fsm;
     
     // Add enemy type to customize behavior
-    public int enemyType; // 1, 2, 3, or 4 corresponding to which enemy it is
+    public int enemyType; // 1, 2, 3, 4 for assassin, 5 for spearman
     
     // Debugging display
     private boolean showState = false; // Set to true to show the current state above the enemy
@@ -31,12 +31,23 @@ class Enemy extends PhysicsObject {
         super(start, 1.0f); 
         this.player = player;
         this.enemyType = enemyType;
-                
-        loadIdleFrames("PixelArt_Samurai/Enemies/Assassin/PNG/WithoutOutline/Assassin_Idle.png");
-        loadHitFrames("PixelArt_Samurai/Enemies/Assassin/PNG/WithoutOutline/Assassin_Hit.png");
-        loadAttackFrames("PixelArt_Samurai/Enemies/Assassin/PNG/WithoutOutline/Assassin_Attack.png");
-        loadDeathFrames("PixelArt_Samurai/Enemies/Assassin/PNG/WithoutOutline/Assassin_Death.png");
-        loadRunFrames("PixelArt_Samurai/Enemies/Assassin/PNG/WithoutOutline/Assassin_Run.png");
+        
+        // Load different graphics based on enemy type
+        // Type 5 will be our spearman
+        if (enemyType == 5) {
+            loadIdleFramesSpearman("PixelArt_Samurai/Enemies/Spearman/PNG/Outlined/Spearman_Idle_Outlined.png");
+            loadHitFramesSpearman("PixelArt_Samurai/Enemies/Spearman/PNG/Outlined/Spearman_Hit_Outlined.png");
+            loadAttackFramesSpearman("PixelArt_Samurai/Enemies/Spearman/PNG/Outlined/Spearman_Attack_Outlined.png");
+            loadDeathFramesSpearman("PixelArt_Samurai/Enemies/Spearman/PNG/Outlined/Spearman_Death_Outlined.png");
+            loadRunFramesSpearman("PixelArt_Samurai/Enemies/Spearman/PNG/Outlined/Spearman_Run_Outlined.png");
+        } else {
+            // Default to assassin graphics for other types
+            loadIdleFrames("PixelArt_Samurai/Enemies/Assassin/PNG/WithoutOutline/Assassin_Idle.png");
+            loadHitFrames("PixelArt_Samurai/Enemies/Assassin/PNG/WithoutOutline/Assassin_Hit.png");
+            loadAttackFrames("PixelArt_Samurai/Enemies/Assassin/PNG/WithoutOutline/Assassin_Attack.png");
+            loadDeathFrames("PixelArt_Samurai/Enemies/Assassin/PNG/WithoutOutline/Assassin_Death.png");
+            loadRunFrames("PixelArt_Samurai/Enemies/Assassin/PNG/WithoutOutline/Assassin_Run.png");
+        }
         
         // Initialize the steering controller
         steeringController = new SteeringController(this);
@@ -101,6 +112,61 @@ class Enemy extends PhysicsObject {
         }
     }
 
+    void loadIdleFramesSpearman(String imgPath) {
+        PImage spriteSheet = loadImage(imgPath);
+        int frameCount = 8; // Spearman has 8 idle frames
+        int frameWidth = spriteSheet.width / frameCount; // Width of each frame
+        idleFrames = new PImage[frameCount];
+
+        for (int i = 0; i < frameCount; i++) {
+            idleFrames[i] = spriteSheet.get(i * frameWidth, 0, frameWidth, spriteSheet.height);
+        }
+    }
+
+    void loadHitFramesSpearman(String imgPath) {
+        PImage spriteSheet = loadImage(imgPath);
+        int frameCount = 10; // Spearman has 10 hit frames
+        int frameWidth = spriteSheet.width / frameCount; 
+        hitFrames = new PImage[frameCount];
+
+        for (int i = 0; i < frameCount; i++) {
+            hitFrames[i] = spriteSheet.get(i * frameWidth, 0, frameWidth, spriteSheet.height);
+        }
+    }
+
+    void loadDeathFramesSpearman(String imgPath) {
+        PImage spriteSheet = loadImage(imgPath);
+        int frameCount = 25; // Spearman has 25 death frames
+        int frameWidth = spriteSheet.width / frameCount; 
+        deathFrames = new PImage[frameCount];
+
+        for (int i = 0; i < frameCount; i++) {
+            deathFrames[i] = spriteSheet.get(i * frameWidth, 0, frameWidth, spriteSheet.height);
+        }
+    }
+
+    void loadAttackFramesSpearman(String imgPath) {
+        PImage spriteSheet = loadImage(imgPath);
+        int frameCount = 19; // Spearman has 19 attack frames
+        int frameWidth = spriteSheet.width / frameCount; 
+        attackFrames = new PImage[frameCount];
+
+        for (int i = 0; i < frameCount; i++) {
+            attackFrames[i] = spriteSheet.get(i * frameWidth, 0, frameWidth, spriteSheet.height);
+        }
+    }
+
+    void loadRunFramesSpearman(String imgPath) {
+        PImage spriteSheet = loadImage(imgPath);
+        int frameCount = 8; // Spearman has 8 run frames
+        int frameWidth = spriteSheet.width / frameCount;
+        runFrames = new PImage[frameCount];
+
+        for (int i = 0; i < frameCount; i++) {
+            runFrames[i] = spriteSheet.get(i * frameWidth, 0, frameWidth, spriteSheet.height);
+        }
+    }
+
     void takeDamage(int damage) {
         // Apply damage but ensure health doesn't go below 0
         health = max(0, health - damage);
@@ -143,11 +209,30 @@ class Enemy extends PhysicsObject {
         if (isDead) {
             // Death animation
             animSpeed = 0.2f;
-            currentFrame += animSpeed;
-            if (currentFrame >= deathFrames.length) {
-                currentFrame = deathFrames.length - 1; // Freeze on last frame
+            
+            if (enemyType == 5) {
+                // Spearman death animation - special handling
+                currentFrame += animSpeed;
+                
+                if (currentFrame < deathFrames.length - 9) {
+                    // Play first part of death animation normally
+                    // This gets us to frame 16
+                } else {
+                    // Once we reach the last 9 frames, loop these frames
+                    if (currentFrame >= deathFrames.length) {
+                        // Reset to start of looping range (frame 16)
+                        currentFrame = deathFrames.length - 9;
+                    }
+                }
+                return;
+            } else {
+                // Regular enemies (assassins) - freeze on last frame
+                currentFrame += animSpeed;
+                if (currentFrame >= deathFrames.length) {
+                    currentFrame = deathFrames.length - 1; // Freeze on last frame
+                }
+                return;
             }
-            return;
         }
         
         if (isHit) {
@@ -155,7 +240,8 @@ class Enemy extends PhysicsObject {
             animSpeed = 0.2f;
             currentFrame += animSpeed;
             if (currentFrame >= hitFrames.length) {
-                currentFrame = hitFrames.length - 1;
+                currentFrame = 0;
+                isHit = false;
             }
             return;
         }
@@ -189,7 +275,9 @@ class Enemy extends PhysicsObject {
     void draw() {
         PImage frame;
         if (isDead) {
-            frame = deathFrames[min((int)currentFrame, deathFrames.length-1)];
+            // Make sure we don't go out of bounds with the animation frame
+            int frameIndex = min((int)currentFrame, deathFrames.length-1);
+            frame = deathFrames[frameIndex];
         } else if (isHit) {
             frame = hitFrames[min((int)currentFrame, hitFrames.length-1)];
         } else if (isAttacking) {
@@ -229,10 +317,12 @@ class Enemy extends PhysicsObject {
     }
 
     public boolean isInAttackCollisionFrame() {
-        if (currentFrame >= ATTACK_COLLISION_START_FRAME && currentFrame <= ATTACK_COLLISION_END_FRAME) {
-            return true;
+        if (enemyType == 5) {
+            // Spearman has different attack collision frames due to spear reach
+            return (currentFrame >= 6 && currentFrame <= 14);
         } else {
-            return false;
+            // Original collision frames for assassin
+            return (currentFrame >= ATTACK_COLLISION_START_FRAME && currentFrame <= ATTACK_COLLISION_END_FRAME);
         }
     }
 
