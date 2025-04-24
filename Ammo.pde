@@ -10,6 +10,9 @@ class Ammo {
   private float glowSpeed = 0.03f;
   private color glowColor = color(255, 255, 100, 150); // Yellow-ish glow for ammo
   
+  // Time of collection
+  private long collectionTime = 0;
+  
   Ammo(PVector position) {
     this.position = position.copy();
     this.ammoImage = loadImage("32px/ammo-pistol-alt 32px.png");
@@ -83,6 +86,7 @@ class Ammo {
   void collect() {
     if (!collected) {
       collected = true;
+      collectionTime = millis();
     }
   }
   

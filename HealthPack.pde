@@ -4,6 +4,7 @@ class HealthPack {
   private boolean collected = false;
   private float radius = 16.0f; // Collision radius
   private float scale = 1.0f;
+  private long collectionTime = 0; // Time when the health pack was collected
   
   // Glow effect properties
   private float glowIntensity = 0;
@@ -87,6 +88,7 @@ class HealthPack {
   void collect() {
     if (!collected) {
       collected = true;
+      collectionTime = millis();
     }
   }
   

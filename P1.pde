@@ -38,6 +38,15 @@ ArrayList<Ammo> ammoPickups = new ArrayList<Ammo>();
 LevelExit levelExit;
 int currentLevel = 1; // Current level number
 boolean inLevelTransition = false;
+boolean cameraFocusOnExit = false;
+long cameraFocusStartTime = 0;
+final long CAMERA_FOCUS_DURATION = 3000; // 3 seconds for the entire animation
+int savedCameraMode = 1; // Save previous camera mode
+PVector savedCameraPosition = new PVector(0, 0);
+float savedCameraZoom = 1.0f;
+boolean pendingExitActivation = false;
+long exitActivationTime = 0;
+final long EXIT_ACTIVATION_DELAY = 1000; // Delay in milliseconds before activating exit
 
 class PlatformObject extends PhysicsObject {
   PImage platformImage;
@@ -131,6 +140,7 @@ void initializeLevel1() {
       coins = levelGenerator.coins;
       ammoPickups = levelGenerator.ammoPickups;
       healthPacks = levelGenerator.healthPacks;
+      levelExit = levelGenerator.levelExit; // Add this line
     } else {
       // Fallback to fixed level if generation fails
       println("Level generation failed, using fallback level");
@@ -434,13 +444,19 @@ void draw() {
   
   // Handle music volume fading
   updateMusicFade();
+
+  // Handle camera focus animation
+  handleCameraFocusAnimation();
+  
+  // Check for pending exit activation
+  checkPendingExitActivation(); // Add this line
   
   // Handle camera before drawing anything
   pushMatrix();
   
   // Update target zoom based on current camera
   targetCameraZoom = (currentCamera == 2) ? cameraZoom : 1.0f;
-  
+
   // Smoothly interpolate camera zoom
   currentCameraZoom = lerp(currentCameraZoom, targetCameraZoom, cameraTransitionSpeed);
   
@@ -599,6 +615,9 @@ void draw() {
   
   // Draw all game objects
   drawGameObjects();
+  
+  // Handle camera focus animation
+  handleCameraFocusAnimation();
   
   // Pop the matrix to restore default transformation for HUD drawing
   popMatrix();
@@ -1090,10 +1109,9 @@ void updateCoins() {
           // All enemies are defeated, allow coin collection
           coin.collect();
           
-          // Stop the timer when the player wins
-          if (timerRunning) {
-            gameEndTime = millis();
-            timerRunning = false;
+          // Activate the level exit
+          if (levelExit != null) {
+            levelExit.activate(); // This will now set a flag instead of using a thread
           }
           
           // Add victory visual effect
@@ -1101,20 +1119,6 @@ void updateCoins() {
           fill(255, 255, 0, 100);
           ellipse(coin.position.x, coin.position.y, 200, 200);
           popStyle();
-          
-          // Set game won state after a short delay to allow animation to play
-          Thread coinThread = new Thread(new Runnable() {
-            public void run() {
-              try {
-                // Wait for the coin destroy animation to finish
-                Thread.sleep(1000);
-                gameOver = true;
-              } catch (InterruptedException e) {
-                e.printStackTrace();
-              }
-            }
-          });
-          coinThread.start();
         } else {
           // Not all enemies defeated, show a message
           pushStyle();
@@ -1151,25 +1155,13 @@ void updateHealthPacks() {
           fill(0, 255, 0, 100);
           ellipse(healthPack.position.x, healthPack.position.y, 100, 100);
           popStyle();
-          
-          // Remove after a short delay
-          final int healthIndex = i;
-          Thread healthThread = new Thread(new Runnable() {
-            public void run() {
-              try {
-                // Wait for the health collection animation
-                Thread.sleep(1000);
-                if (healthIndex < healthPacks.size()) {
-                  healthPacks.remove(healthIndex);
-                }
-              } catch (InterruptedException e) {
-                e.printStackTrace();
-              }
-            }
-          });
-          healthThread.start();
         }
       }
+    }
+    
+    // Check if it's time to remove collected health pack
+    if (healthPack.isCollected() && millis() > healthPack.collectionTime + 1000) {
+      healthPacks.remove(i);
     }
   }
 }
@@ -1181,9 +1173,8 @@ void updateAmmoPickups() {
     Ammo ammo = ammoPickups.get(i);
     ammo.update();
     
-    // Check for collision with player if not already collected
+    // Check for collection
     if (!ammo.isCollected() && !gameOver) {
-      // distance-based collision check
       float distance = PVector.dist(character.position, ammo.position);
       if (distance < character.radius + ammo.getRadius()) {
         // Collect the ammo and add to player's ammo count
@@ -1195,24 +1186,12 @@ void updateAmmoPickups() {
         fill(255, 255, 0, 100);
         ellipse(ammo.position.x, ammo.position.y, 100, 100);
         popStyle();
-        
-        // Remove after a short delay
-        final int ammoIndex = i;
-        Thread ammoThread = new Thread(new Runnable() {
-          public void run() {
-            try {
-              // Wait for the ammo collection animation
-              Thread.sleep(1000);
-              if (ammoIndex < ammoPickups.size()) {
-                ammoPickups.remove(ammoIndex);
-              }
-            } catch (InterruptedException e) {
-              e.printStackTrace();
-            }
-          }
-        });
-        ammoThread.start();
       }
+    }
+    
+    // Check if it's time to remove collected ammo
+    if (ammo.isCollected() && millis() > ammo.collectionTime + 1000) {
+      ammoPickups.remove(i);
     }
   }
 }
@@ -1263,5 +1242,105 @@ void displayLevelIntro() {
     }
     
     popStyle();
+  }
+}
+
+// Add this method to P1.pde
+void handleCameraFocusAnimation() {
+  if (cameraFocusOnExit && levelExit != null) {
+    long currentTime = millis();
+    long elapsedTime = currentTime - cameraFocusStartTime;
+    
+    if (elapsedTime < CAMERA_FOCUS_DURATION) {
+      // Determine which phase of the animation we're in
+      float phase = elapsedTime / (float) CAMERA_FOCUS_DURATION;
+      
+      if (phase < 0.4) {
+        // Phase 1: Zoom in on exit (0-40% of animation time)
+        float zoomProgress = map(phase, 0, 0.4f, 0, 1);
+        zoomProgress = easeInOutQuad(zoomProgress); // Apply easing for smooth animation
+        
+        // Save camera state if we're just starting
+        if (phase < 0.01) {
+          savedCameraMode = currentCamera;
+          savedCameraPosition = cameraPosition.copy();
+          savedCameraZoom = currentCameraZoom;
+          currentCamera = 3; // Special camera mode for animation
+        }
+        
+        // Interpolate camera position to focus on exit
+        PVector targetPosition = new PVector(
+          width/2 - levelExit.position.x * 2.5f, // Zoom target
+          height/2 - levelExit.position.y * 2.5f  // Zoom target
+        );
+        
+        cameraPosition.x = lerp(savedCameraPosition.x, targetPosition.x, zoomProgress);
+        cameraPosition.y = lerp(savedCameraPosition.y, targetPosition.y, zoomProgress);
+        currentCameraZoom = lerp(savedCameraZoom, 2.5f, zoomProgress); // Zoom in
+      }
+      else if (phase < 0.7) {
+        // Phase 2: Stay focused on exit (40-70% of animation time)
+        // Keep the camera focused on the exit
+      }
+      else {
+        // Phase 3: Return to normal (70-100% of animation time)
+        float returnProgress = map(phase, 0.7f, 1.0f, 0, 1);
+        returnProgress = easeInOutQuad(returnProgress);
+        
+        // Restore saved camera position and mode
+        PVector targetPosition = (savedCameraMode == 2) ? 
+          calculatePlayerCameraPosition() : savedCameraPosition;
+        
+        cameraPosition.x = lerp(cameraPosition.x, targetPosition.x, returnProgress);
+        cameraPosition.y = lerp(cameraPosition.y, targetPosition.y, returnProgress);
+        currentCameraZoom = lerp(currentCameraZoom, savedCameraZoom, returnProgress);
+        
+        // If we're at the end, restore the camera mode
+        if (phase > 0.99) {
+          currentCamera = savedCameraMode;
+          cameraFocusOnExit = false;
+        }
+      }
+    }
+    else {
+      // Animation complete
+      currentCamera = savedCameraMode;
+      cameraFocusOnExit = false;
+    }
+  }
+}
+
+// Helper method to calculate player camera position (for when returning to player-following camera)
+PVector calculatePlayerCameraPosition() {
+  if (character != null) {
+    float visibleWidth = width / cameraZoom;
+    float visibleHeight = height / cameraZoom;
+    
+    float marginX = visibleWidth / 2;
+    float marginY = visibleHeight / 2;
+    
+    float boundedPlayerX = constrain(character.position.x, marginX, width - marginX);
+    float boundedPlayerY = constrain(character.position.y, marginY, height - marginY);
+    
+    return new PVector(
+      width/2 - boundedPlayerX * cameraZoom,
+      height/2 - boundedPlayerY * cameraZoom
+    );
+  }
+  return new PVector(0, 0);
+}
+
+// Easing function for smooth animation
+float easeInOutQuad(float t) {
+  return t < 0.5f ? 2 * t * t : 1 - pow(-2 * t + 2, 2) / 2;
+}
+
+// Add this method to check for pending activation
+void checkPendingExitActivation() {
+  if (pendingExitActivation && millis() > exitActivationTime + EXIT_ACTIVATION_DELAY) {
+    // Trigger camera animation after delay
+    cameraFocusOnExit = true;
+    cameraFocusStartTime = millis();
+    pendingExitActivation = false;
   }
 }
