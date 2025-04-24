@@ -41,6 +41,10 @@ class Character extends PhysicsObject {
     private ConstantForce movementForce;
     private ConstantForce jumpForce;
 
+    // Ammo variables
+    private int ammoCount = 0; // Initial ammo count
+    private final static int MAX_AMMO = 10; // Maximum ammo count
+
 
     public Character(PVector start) {
         super(start, 1.0f); 
@@ -355,7 +359,8 @@ class Character extends PhysicsObject {
 
     public void shoot() {
         long currentTime = millis();
-        if (currentTime - lastShotTime > SHOT_COOLDOWN && !shooting && !attacking) {
+        // Check if we have ammo and if cooldown has expired
+        if (ammoCount > 0 && currentTime - lastShotTime > SHOT_COOLDOWN && !shooting && !attacking) {
             shooting = true;
             currentFrame = 0;
             
@@ -365,6 +370,12 @@ class Character extends PhysicsObject {
             bullets.add(new Bullet(bulletPos, bulletVel));
             
             lastShotTime = currentTime;
+            
+            // Decrement ammo count
+            ammoCount--;
+        } else if (ammoCount <= 0 && currentTime - lastShotTime > SHOT_COOLDOWN && !shooting && !attacking) {
+            // Out of ammo - could add a "click" sound effect here
+            lastShotTime = currentTime; // Still apply cooldown to prevent rapid clicking
         }
     }
 
@@ -381,6 +392,29 @@ class Character extends PhysicsObject {
         if (springBounce) {
             this.springForceFrames = 0; // Reset the frame counter when activating spring bounce
         }
+    }
+
+    public int getAmmoCount() {
+        return ammoCount;
+    }
+
+    public void addAmmo(int amount) {
+        ammoCount = min(ammoCount + amount, MAX_AMMO);
+    }
+
+
+    public void heal(int amount) {
+        // Define maximum health (using the initial value)
+        final int MAX_HEALTH = 100;
+        
+        // Add health but don't exceed maximum
+        health = min(health + amount, MAX_HEALTH);
+        
+        // Visual effect for healing
+        fill(0, 255, 0, 100);  // Green flash for healing
+        rect(0, 0, width, height);
+        // Return to normal color
+        fill(255);
     }
     
 }

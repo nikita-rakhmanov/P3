@@ -12,6 +12,8 @@ class LevelGenerator {
   ArrayList<Spring> springs = new ArrayList<Spring>();
   ArrayList<Enemy> enemies = new ArrayList<Enemy>();
   ArrayList<Coin> coins = new ArrayList<Coin>();
+  ArrayList<Ammo> ammoPickups = new ArrayList<Ammo>();
+  ArrayList<HealthPack> healthPacks = new ArrayList<HealthPack>();
   
   // Temporary pathfinding components for validation
   GridMap tempGridMap;
@@ -29,6 +31,8 @@ class LevelGenerator {
     springs.clear();
     enemies.clear();
     coins.clear();
+    ammoPickups.clear();
+    healthPacks.clear();
     
     // Generate-and-test approach: keep generating until we get a valid level
     boolean validLevel = false;
@@ -62,6 +66,8 @@ class LevelGenerator {
       // Now place enemies and coins on the validated level
       placeStructuredEnemies(player);
       placeCoins();
+      placeAmmoPickups();
+      placeHealthPacks();
       return true;
     } else {
       println("Failed to generate a valid level after " + MAX_GENERATION_ATTEMPTS + " attempts.");
@@ -78,6 +84,7 @@ class LevelGenerator {
     // Clear any existing objects
     platforms.clear();
     springs.clear();
+    healthPacks.clear();
     
     // Define a fixed, guaranteed playable layout
     float platformWidth = 32;
@@ -637,5 +644,126 @@ class LevelGenerator {
       // Fallback - center of top area
       coins.add(new Coin(new PVector(width * 0.5f, height - 510)));
     }
+  }
+
+  void placeAmmoPickups() {
+      // Place 2-3 ammo pickups around the level based on difficulty
+      int numAmmoPickups = int(random(1, 3)); 
+      
+      // Find platforms at different heights for distribution
+      ArrayList<PlatformObject> lowPlatforms = findPlatformsAtHeight(height - 150, 30);
+      ArrayList<PlatformObject> midPlatforms = findPlatformsAtHeight(height - 270, 30);
+      ArrayList<PlatformObject> highPlatforms = findPlatformsAtHeight(height - 330, 30);
+      
+      // Make sure we have platforms at each level
+      if (lowPlatforms.isEmpty() || midPlatforms.isEmpty() || highPlatforms.isEmpty()) {
+          // Fallback placements if we don't have all platform levels
+          ammoPickups.add(new Ammo(new PVector(width * 0.3f, height - 200)));
+          ammoPickups.add(new Ammo(new PVector(width * 0.7f, height - 200)));
+          return;
+      }
+      
+      // Strategic placement at different heights
+      // Always place one at low level for initial gameplay
+      if (!lowPlatforms.isEmpty()) {
+          PlatformObject platform = lowPlatforms.get(int(random(lowPlatforms.size())));
+          ammoPickups.add(new Ammo(new PVector(platform.position.x, platform.position.y - 20)));
+      }
+      
+      // Place one at mid level
+      if (!midPlatforms.isEmpty() && numAmmoPickups >= 2) {
+          PlatformObject platform = midPlatforms.get(int(random(midPlatforms.size())));
+          ammoPickups.add(new Ammo(new PVector(platform.position.x, platform.position.y - 20)));
+      }
+      
+      // Place one at high level if we want 3 pickups
+      if (!highPlatforms.isEmpty() && numAmmoPickups >= 3) {
+          PlatformObject platform = highPlatforms.get(int(random(highPlatforms.size())));
+          ammoPickups.add(new Ammo(new PVector(platform.position.x, platform.position.y - 20)));
+      }
+  }
+
+  void placeHealthPacks() {
+      // Place 1-2 health packs in the level
+      int numHealthPacks = int(random(1, 3));
+      
+      // Find platforms at different heights
+      ArrayList<PlatformObject> lowPlatforms = findPlatformsAtHeight(height - 150, 30);
+      ArrayList<PlatformObject> midPlatforms = findPlatformsAtHeight(height - 270, 30);
+      ArrayList<PlatformObject> highPlatforms = findPlatformsAtHeight(height - 330, 30);
+      
+      // Make sure we have platforms
+      if (lowPlatforms.isEmpty() && midPlatforms.isEmpty() && highPlatforms.isEmpty()) {
+          // Fallback placements if we don't have proper platforms
+          healthPacks.add(new HealthPack(new PVector(width * 0.5f, height - 180)));
+          return;
+      }
+      
+      // Height offset for placing items above platforms
+      float heightOffset = -25.0f;
+      
+      // Try to place health packs at different locations than ammo
+      // We'll prefer mid to high platforms for health packs
+      
+      // Place first health pack at mid level if possible
+      if (!midPlatforms.isEmpty()) {
+          // Find a platform that doesn't have ammo on it
+          PlatformObject bestPlatform = null;
+          for (PlatformObject platform : midPlatforms) {
+              boolean hasAmmo = false;
+              for (Ammo ammo : ammoPickups) {
+                  if (abs(ammo.position.x - platform.position.x) < 30) {
+                      hasAmmo = true;
+                      break;
+                  }
+              }
+              if (!hasAmmo) {
+                  bestPlatform = platform;
+                  break;
+              }
+          }
+          
+          // If we couldn't find a platform without ammo, use any platform
+          if (bestPlatform == null && !midPlatforms.isEmpty()) {
+              bestPlatform = midPlatforms.get(int(random(midPlatforms.size())));
+          }
+          
+          if (bestPlatform != null) {
+              healthPacks.add(new HealthPack(new PVector(bestPlatform.position.x, bestPlatform.position.y + heightOffset)));
+          }
+      }
+      
+      // Place second health pack at high level if requested
+      if (numHealthPacks >= 2) {
+          // Try high platforms first, then low platforms as fallback
+          ArrayList<PlatformObject> targetPlatforms = !highPlatforms.isEmpty() ? highPlatforms : lowPlatforms;
+          
+          if (!targetPlatforms.isEmpty()) {
+              // Again, try to find a platform without ammo
+              PlatformObject bestPlatform = null;
+              for (PlatformObject platform : targetPlatforms) {
+                  boolean hasAmmo = false;
+                  for (Ammo ammo : ammoPickups) {
+                      if (abs(ammo.position.x - platform.position.x) < 30) {
+                          hasAmmo = true;
+                          break;
+                      }
+                  }
+                  if (!hasAmmo) {
+                      bestPlatform = platform;
+                      break;
+                  }
+              }
+              
+              // If we couldn't find a platform without ammo, use any platform
+              if (bestPlatform == null && !targetPlatforms.isEmpty()) {
+                  bestPlatform = targetPlatforms.get(int(random(targetPlatforms.size())));
+              }
+              
+              if (bestPlatform != null) {
+                  healthPacks.add(new HealthPack(new PVector(bestPlatform.position.x, bestPlatform.position.y + heightOffset)));
+              }
+          }
+      }
   }
 }

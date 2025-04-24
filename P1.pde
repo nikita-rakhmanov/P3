@@ -8,6 +8,7 @@ ArrayList<Enemy> enemies = new ArrayList<Enemy>();
 ArrayList<Spring> springs = new ArrayList<Spring>();
 ArrayList<PlatformObject> platforms = new ArrayList<PlatformObject>();
 ArrayList<Coin> coins = new ArrayList<Coin>();
+ArrayList<HealthPack> healthPacks = new ArrayList<HealthPack>();
 boolean attackLanded = false;
 boolean gameOver = false;
 boolean gameStarted = false;
@@ -33,6 +34,7 @@ float currentMusicVolume = 0.0f;
 float fadeSpeed = 0.01f; // Increased from 0.001f for faster fading
 boolean fadingIn = true; 
 boolean useProceduralGeneration = true; // Flag to use procedural generation
+ArrayList<Ammo> ammoPickups = new ArrayList<Ammo>();
 
 class PlatformObject extends PhysicsObject {
   PImage platformImage;
@@ -93,6 +95,8 @@ void initializeLevel() {
   springs.clear();
   enemies.clear();
   coins.clear();
+  ammoPickups.clear();
+  healthPacks.clear();
   
   if (useProceduralGeneration) {
     // Generate procedural level
@@ -106,6 +110,8 @@ void initializeLevel() {
       springs = levelGenerator.springs;
       enemies = levelGenerator.enemies;
       coins = levelGenerator.coins;
+      ammoPickups = levelGenerator.ammoPickups;
+      healthPacks = levelGenerator.healthPacks;
     } else {
       // Fallback to fixed level if generation fails
       println("Level generation failed, using fallback level");
@@ -178,6 +184,13 @@ void createFixedLevel() {
   
   // Add a coin on the top platform
   coins.add(new Coin(new PVector(width * 0.5f, height - 510 - 10)));
+  
+  // Add health packs
+  healthPacks.add(new HealthPack(new PVector(width * 0.4f, height - 350)));
+  healthPacks.add(new HealthPack(new PVector(width * 0.6f, height - 350)));
+
+  // Add ammo pickups
+  ammoPickups.add(new Ammo(new PVector(width * 0.2f, height - 150)));
 }
 
 // Setup the physics engine with current game objects
@@ -444,6 +457,12 @@ void draw() {
     
     // Update and check coins 
     updateCoins();
+
+    // Update ammo pickups
+    updateAmmoPickups();
+    
+    // Update health packs
+    updateHealthPacks();
     
     // Handle bullet collisions with all enemies
     handleBulletCollisions();
@@ -480,8 +499,8 @@ void draw() {
   fill(255);
   textSize(16);
   textAlign(LEFT);
-  text("Camera: " + (currentCamera == 1 ? "Default" : "Follow Player") + " ('1' or '2' to change)", 50, height - 650);
-  text("Music: " + (musicEnabled ? "ON" : "OFF") + " (Press 'M' to toggle)", 50, height - 620);
+  text("Camera: " + (currentCamera == 1 ? "Default" : "Follow Player") + " ('1' or '2' to change)", 50, height - 630);
+  text("Music: " + (musicEnabled ? "ON" : "OFF") + " (Press 'M' to toggle)", 50, height - 600);
 }
 
 // Function to handle music fade in/out
@@ -734,12 +753,22 @@ void drawGameObjects() {
     coin.draw();
   }
   
+  // Draw health packs
+  for (HealthPack health : healthPacks) {
+    health.draw();
+  }
+  
   // Draw character
   character.draw();
   
   // Draw enemies
   for (Enemy enemy : enemies) {
     enemy.draw();
+  }
+
+  // Draw ammo pickups
+  for (Ammo ammo : ammoPickups) {
+    ammo.draw();
   }
 }
 
@@ -748,6 +777,11 @@ void displayHUD() {
   fill(255);
   textSize(20);
   text("Health: " + character.getHealth(), 50, 50);
+
+  // Ammo count display with icon
+  textSize(20);
+  fill(255, 255, 0); // Yellow text for ammo
+  text("Ammo: " + character.getAmmoCount(), 50, 110);  // Display under health/time
   
   // Enemy health display
   for (int i = 0; i < enemies.size(); i++) {
@@ -961,6 +995,94 @@ void updateCoins() {
           text("Defeat all enemies first!", width/2, height/2 - 100);
           popStyle();
         }
+      }
+    }
+  }
+}
+
+void updateHealthPacks() {
+  // Update all health packs
+  for (int i = healthPacks.size() - 1; i >= 0; i--) {
+    HealthPack healthPack = healthPacks.get(i);
+    healthPack.update();
+    
+    // Check for collision with player if not already collected
+    if (!healthPack.isCollected() && !gameOver) {
+      // distance-based collision check
+      float distance = PVector.dist(character.position, healthPack.position);
+      if (distance < character.radius + healthPack.getRadius()) {
+        // Only collect if player doesn't have full health
+        if (character.getHealth() < 100) {
+          // Collect the health pack and heal the player
+          healthPack.collect();
+          character.heal(25); // Heal by 25 health points
+          
+          // Add collection visual effect
+          pushStyle();
+          fill(0, 255, 0, 100);
+          ellipse(healthPack.position.x, healthPack.position.y, 100, 100);
+          popStyle();
+          
+          // Remove after a short delay
+          final int healthIndex = i;
+          Thread healthThread = new Thread(new Runnable() {
+            public void run() {
+              try {
+                // Wait for the health collection animation
+                Thread.sleep(1000);
+                if (healthIndex < healthPacks.size()) {
+                  healthPacks.remove(healthIndex);
+                }
+              } catch (InterruptedException e) {
+                e.printStackTrace();
+              }
+            }
+          });
+          healthThread.start();
+        }
+      }
+    }
+  }
+}
+
+// handle ammo pickup collection:
+void updateAmmoPickups() {
+  // Update all ammo pickups
+  for (int i = ammoPickups.size() - 1; i >= 0; i--) {
+    Ammo ammo = ammoPickups.get(i);
+    ammo.update();
+    
+    // Check for collision with player if not already collected
+    if (!ammo.isCollected() && !gameOver) {
+      // distance-based collision check
+      float distance = PVector.dist(character.position, ammo.position);
+      if (distance < character.radius + ammo.getRadius()) {
+        // Collect the ammo and add to player's ammo count
+        ammo.collect();
+        character.addAmmo(5); // Add 5 shots to player's ammo
+        
+        // Add collection visual effect
+        pushStyle();
+        fill(255, 255, 0, 100);
+        ellipse(ammo.position.x, ammo.position.y, 100, 100);
+        popStyle();
+        
+        // Remove after a short delay
+        final int ammoIndex = i;
+        Thread ammoThread = new Thread(new Runnable() {
+          public void run() {
+            try {
+              // Wait for the ammo collection animation
+              Thread.sleep(1000);
+              if (ammoIndex < ammoPickups.size()) {
+                ammoPickups.remove(ammoIndex);
+              }
+            } catch (InterruptedException e) {
+              e.printStackTrace();
+            }
+          }
+        });
+        ammoThread.start();
       }
     }
   }
