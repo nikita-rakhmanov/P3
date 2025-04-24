@@ -36,6 +36,9 @@ class EnemySpawner {
   // Effect settings
   ArrayList<SmokeEffect> smokeEffects = new ArrayList<SmokeEffect>();
   
+  // References for level exit
+  Level2Exit levelExit;
+  boolean exitSpawned = false;
   boolean isActive = false;  // Whether the spawner is currently active
   
   EnemySpawner(Character player, ArrayList<Enemy> enemies) {
@@ -122,6 +125,52 @@ class EnemySpawner {
     if (isActive && enemiesSpawned >= maxEnemies) {
       isActive = false;
     }
+    
+    // Check if all enemies are defeated and if we need to activate the exit
+    checkForLevelCompletion();
+  }
+
+  // Check if all enemies are defeated and spawn exit if needed
+  void checkForLevelCompletion() {
+    // Skip if the exit is already spawned
+    if (exitSpawned) return;
+    
+    // Check if all enemies have been spawned
+    if (enemiesSpawned < maxEnemies) return;
+    
+    // Check if all enemies are defeated
+    boolean allDefeated = true;
+    for (Enemy enemy : enemies) {
+      if (!enemy.isDead) {
+        allDefeated = false;
+        break;
+      }
+    }
+    
+    // If all enemies are defeated, spawn the exit
+    if (allDefeated) {
+      spawnExit();
+    }
+  }
+  
+  // Spawn the exit at the right edge of the screen
+  void spawnExit() {
+    // Create exit at the right edge of the screen
+    float exitX = width - 100;  // Set back from the very edge
+    float exitY = height - 100; // Above the ground
+    
+    // Create the exit
+    levelExit = new Level2Exit(new PVector(exitX, exitY));
+    levelExit.activate();
+    
+    // Mark as spawned
+    exitSpawned = true;
+    
+    println("Level exit spawned at: " + exitX + ", " + exitY);
+    
+    // Create a large smoke effect at the exit location
+    SmokeEffect exitSmoke = new SmokeEffect(new PVector(exitX, exitY), 60);
+    smokeEffects.add(exitSmoke);
   }
   
   // Count active (non-collected) ammo pickups
@@ -266,6 +315,12 @@ class EnemySpawner {
     for (SmokeEffect effect : smokeEffects) {
       effect.display();
     }
+    
+    // Draw the exit if spawned
+    if (exitSpawned && levelExit != null) {
+      levelExit.update();
+      levelExit.draw();
+    }
   }
   
   // Helper class for scheduled item spawns
@@ -309,9 +364,20 @@ class EnemySpawner {
         return;
       }
       
-      // Update all particles
-      for (SmokeParticle p : particles) {
+      // Update all particles and remove those that are no longer visible
+      for (int i = particles.size() - 1; i >= 0; i--) {
+        SmokeParticle p = particles.get(i);
         p.update();
+        
+        // Remove particles that have faded out completely
+        if (p.alpha <= 0) {
+          particles.remove(i);
+        }
+      }
+      
+      // Also mark the effect as inactive if all particles are gone
+      if (particles.isEmpty()) {
+        active = false;
       }
     }
     
