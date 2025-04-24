@@ -151,9 +151,6 @@ void initializeLevel1() {
     createFixedLevel();
   }
   
-  // Add the level exit at the ground
-  levelExit = new LevelExit(new PVector(width * 0.9f, height - 30));
-  
   // Load the regular background
   bg = new Background("CharacterPack/Enviro/BG/trees_bg.png");
 }
