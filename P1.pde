@@ -35,6 +35,9 @@ float fadeSpeed = 0.01f; // Increased from 0.001f for faster fading
 boolean fadingIn = true; 
 boolean useProceduralGeneration = true; // Flag to use procedural generation
 ArrayList<Ammo> ammoPickups = new ArrayList<Ammo>();
+LevelExit levelExit;
+int currentLevel = 1; // Current level number
+boolean inLevelTransition = false;
 
 class PlatformObject extends PhysicsObject {
   PImage platformImage;
@@ -87,9 +90,6 @@ void setup() {
 
 // Use this function to initialize and use the level generator
 void initializeLevel() {
-  // Initialize level generator
-  levelGenerator = new LevelGenerator();
-  
   // Clear existing game objects
   platforms.clear();
   springs.clear();
@@ -97,6 +97,25 @@ void initializeLevel() {
   coins.clear();
   ammoPickups.clear();
   healthPacks.clear();
+  
+  // Determine which level to load
+  if (currentLevel == 1) {
+    initializeLevel1();
+  } else if (currentLevel == 2) {
+    initializeLevel2();
+  }
+  
+  // Configure physics engine and other systems
+  setupPhysicsEngine();
+  setupPathfinding();
+  
+  // Reset game start time when initializing a new level
+  gameStartTime = millis();
+}
+
+void initializeLevel1() {
+  // Initialize level generator
+  levelGenerator = new LevelGenerator();
   
   if (useProceduralGeneration) {
     // Generate procedural level
@@ -122,9 +141,59 @@ void initializeLevel() {
     createFixedLevel();
   }
   
-  // Configure physics engine and other systems
-  setupPhysicsEngine();
-  setupPathfinding();
+  // Add the level exit at the ground
+  levelExit = new LevelExit(new PVector(width * 0.9f, height - 30));
+  
+  // Load the regular background
+  bg = new Background("CharacterPack/Enviro/BG/trees_bg.png");
+}
+
+void initializeLevel2() {
+  println("Initializing Level 2...");
+  
+  // Use the samurai environment ground texture
+  ground = new Platform("PixelArt_Samurai/Environment/PNG/Environment_Ground.png");
+  
+  // Create a different background
+  bg = new Background("PixelArt_Samurai/Environment/PNG/Environment_Back_Mountain.png");
+
+   float platformWidth = 32;
+  
+  // Add a few scattered platforms
+  // Center platform structure
+  platforms.add(new PlatformObject(width * 0.5f, height - 200));
+  platforms.add(new PlatformObject(width * 0.5f + platformWidth, height - 200));
+  platforms.add(new PlatformObject(width * 0.5f - platformWidth, height - 200));
+  
+  // Left platform
+  platforms.add(new PlatformObject(width * 0.2f, height - 150));
+  platforms.add(new PlatformObject(width * 0.2f + platformWidth, height - 150));
+  
+  // Right platform
+  platforms.add(new PlatformObject(width * 0.8f, height - 150));
+  platforms.add(new PlatformObject(width * 0.8f - platformWidth, height - 150));
+  
+  // Upper platforms
+  platforms.add(new PlatformObject(width * 0.35f, height - 300));
+  platforms.add(new PlatformObject(width * 0.65f, height - 300));
+  
+  // Add a spring
+  springs.add(new Spring(new PVector(width * 0.5f, height - 20)));
+  
+  // Add a single enemy as a challenge
+  Enemy enemy = new Enemy(new PVector(width * 0.8f, height - 30), character, 2);
+  enemy.fsm.forceState(EnemyState.PATROL);
+  enemies.add(enemy);
+  
+  // Add some ammo pickups
+  ammoPickups.add(new Ammo(new PVector(width * 0.2f, height - 180)));
+  ammoPickups.add(new Ammo(new PVector(width * 0.65f, height - 330)));
+  
+  // Add a health pack
+  healthPacks.add(new HealthPack(new PVector(width * 0.35f, height - 330)));
+  
+  // No exit in this level for now
+  levelExit = null;
 }
 
 // Create the fixed level (your original level design)
@@ -485,6 +554,48 @@ void draw() {
   
   // Check for spring collisions
   checkSprings();
+
+  // Check for collision with level exit
+  if (levelExit != null && !inLevelTransition && !gameOver) {
+    levelExit.update();
+    
+    if (levelExit.isPlayerInRange(character)) {
+      // Player has entered the exit - start level transition
+      inLevelTransition = true;
+      levelExit.deactivate();
+      
+      // Transition to the next level after a short delay
+      Thread transitionThread = new Thread(new Runnable() {
+        public void run() {
+          try {
+            // Wait for a moment
+            Thread.sleep(1000);
+            
+            // Increment level and reset player position
+            currentLevel++;
+            resetPlayerForLevel(currentLevel);
+            
+            // Initialize the new level
+            initializeLevel();
+            
+            // End transition
+            inLevelTransition = false;
+          } catch (InterruptedException e) {
+            e.printStackTrace();
+          }
+        }
+      });
+      transitionThread.start();
+    }
+  }
+
+  // Draw level transition effect
+  if (inLevelTransition) {
+    pushStyle();
+    fill(0, 0, 0, map(min(frameCount % 60, 60 - frameCount % 60), 0, 30, 0, 255));
+    rect(0, 0, width, height);
+    popStyle();
+  }
   
   // Draw all game objects
   drawGameObjects();
@@ -770,6 +881,11 @@ void drawGameObjects() {
   for (Ammo ammo : ammoPickups) {
     ammo.draw();
   }
+
+  // Draw the level exit if it exists
+  if (levelExit != null) {
+    levelExit.draw();
+  }
 }
 
 void displayHUD() {
@@ -782,6 +898,10 @@ void displayHUD() {
   textSize(20);
   fill(255, 255, 0); // Yellow text for ammo
   text("Ammo: " + character.getAmmoCount(), 50, 110);  // Display under health/time
+  
+  // Display current level
+  fill(255, 215, 0); // Gold color
+  text("Level: " + currentLevel, 50, 140);
   
   // Enemy health display
   for (int i = 0; i < enemies.size(); i++) {
@@ -819,6 +939,9 @@ void displayHUD() {
   if (gameOver) {
     displayGameOver();
   }
+  
+  // Show level intro if we just changed levels
+  displayLevelIntro();
 }
 
 // format milliseconds as mm:ss.ms
@@ -904,6 +1027,10 @@ void resetGame() {
   gameOver = false;
   attackLanded = false;
   
+  // Reset level
+  currentLevel = 1;
+  inLevelTransition = false;
+  
   // Reset timer
   gameStartTime = millis();
   gameEndTime = 0;
@@ -915,8 +1042,10 @@ void resetGame() {
   springs.clear();
   platforms.clear();
   coins.clear();
+  ammoPickups.clear();
+  healthPacks.clear();
   
-  // Recreate character, enemies, platforms and springs
+  // Recreate character
   character = new Character(new PVector(width / 2, height - 30));
   
   initializeLevel();
@@ -929,7 +1058,7 @@ void resetGame() {
 
   // If music was disabled, keep it that way
   if (musicEnabled && !bgMusic.isPlaying()) {
-    bgMusic.play();
+    bgMusic.loop();
     fadingIn = true;
     currentMusicVolume = 0;
     bgMusic.amp(0);
@@ -1085,5 +1214,54 @@ void updateAmmoPickups() {
         ammoThread.start();
       }
     }
+  }
+}
+
+// Reset player for new level
+void resetPlayerForLevel(int level) {
+  // Reset player position based on level
+  if (level == 1) {
+    character.position = new PVector(width / 2, height - 30);
+  } else if (level == 2) {
+    character.position = new PVector(width * 0.2f, height - 30);
+  }
+  
+  // Reset player velocity
+  character.velocity = new PVector(0, 0);
+  
+  // Make sure player is not in any special states
+  character.jumpingUp = false;
+  character.fallingDown = false;
+}
+
+// Display a level intro
+void displayLevelIntro() {
+  // Only show for a few seconds after level change
+  long currentTime = millis();
+  if (currentTime - gameStartTime < 2000) {
+    pushStyle();
+    
+    // Semi-transparent background
+    fill(0, 0, 0, 150);
+    rect(0, 0, width, height);
+    
+    // Level title
+    textAlign(CENTER, CENTER);
+    textSize(60);
+    fill(255, 215, 0);
+    text("LEVEL " + currentLevel, width/2, height/2 - 40);
+    
+    // Level description
+    textSize(24);
+    fill(255);
+    if (currentLevel == 1) {
+      text("Training Grounds", width/2, height/2 + 20);
+      text("Defeat enemies and find the exit", width/2, height/2 + 60);
+    } else if (currentLevel == 2) {
+      text("Mountain Path", width/2, height/2 + 20);
+      text("Survive the journey ahead", width/2, height/2 + 60);
+    }
+    
+    popStyle();
   }
 }
