@@ -47,21 +47,21 @@ class LevelExit {
     float pulseSize = 1.0f + 0.2f * sin(frameCount * 0.1f);
     
     pushStyle();
-    // Outer glow
-    noStroke();
-    fill(100, 200, 255, 80);
-    ellipse(position.x, position.y, radius * 2.5f * pulseSize, radius * 2.5f * pulseSize);
+    // // Outer glow
+    // noStroke();
+    // fill(100, 200, 255, 80);
+    // ellipse(position.x, position.y, radius * 2.5f * pulseSize, radius * 2.5f * pulseSize);
     
-    // Inner glow
-    fill(150, 220, 255, 120);
-    ellipse(position.x, position.y, radius * 1.8f * pulseSize, radius * 1.8f * pulseSize);
-    popStyle();
+    // // Inner glow
+    // fill(150, 220, 255, 120);
+    // ellipse(position.x, position.y, radius * 1.8f * pulseSize, radius * 1.8f * pulseSize);
+    // popStyle();
     
     // Draw the exit animation
     int frameIndex = min((int)currentFrame, exitFrames.length - 1);
     
     // Draw the exit image
-    image(exitFrames[frameIndex], position.x, position.y);
+    image(exitFrames[frameIndex], position.x, position.y + 10);
       }
   
   boolean isPlayerInRange(Character player) {

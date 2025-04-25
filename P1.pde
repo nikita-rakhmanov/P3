@@ -40,7 +40,6 @@ int currentLevel = 2; // Current level number
 boolean inLevelTransition = false;
 boolean cameraFocusOnExit = false;
 long cameraFocusStartTime = 0;
-final long CAMERA_FOCUS_DURATION = 3000; // 3 seconds for the entire animation
 int savedCameraMode = 1; // Save previous camera mode
 PVector savedCameraPosition = new PVector(0, 0);
 float savedCameraZoom = 1.0f;
@@ -166,6 +165,9 @@ void initializeLevel2() {
   coins.clear();
   ammoPickups.clear();
   healthPacks.clear();
+  
+  // Reset level exit reference
+  levelExit = null;
   
   // Use the Perlin noise background (or whichever version you prefer)
   bg = new PerlinNoiseBackground();
@@ -939,10 +941,6 @@ void displayHUD() {
   fill(255, 255, 0); // Yellow text for ammo
   text("Ammo: " + character.getAmmoCount(), 50, 110);  // Display under health/time
   
-  // Display current level
-  fill(255, 215, 0); // Gold color
-  text("Level: " + currentLevel, 50, 140);
-  
   // Enemy health display
   for (int i = 0; i < enemies.size(); i++) {
     if (!enemies.get(i).isDead) {
@@ -1272,40 +1270,45 @@ void handleCameraFocusAnimation() {
     long currentTime = millis();
     long elapsedTime = currentTime - cameraFocusStartTime;
     
+    // Reduced animation duration for a quicker, less intrusive effect
+    final long CAMERA_FOCUS_DURATION = 2000; // 2 seconds instead of 3
+    
     if (elapsedTime < CAMERA_FOCUS_DURATION) {
       // Determine which phase of the animation we're in
       float phase = elapsedTime / (float) CAMERA_FOCUS_DURATION;
       
-      if (phase < 0.4) {
-        // Phase 1: Zoom in on exit (0-40% of animation time)
-        float zoomProgress = map(phase, 0, 0.4f, 0, 1);
-        zoomProgress = easeInOutQuad(zoomProgress); // Apply easing for smooth animation
+      // Save camera state if we're just starting
+      if (phase < 0.01) {
+        savedCameraMode = currentCamera;
+        savedCameraPosition = cameraPosition.copy();
+        savedCameraZoom = currentCameraZoom;
+        currentCamera = 3; // Special camera mode for animation
+      }
+      
+      // Use a single smooth curve for the entire animation instead of distinct phases
+      float animationProgress = easeInOutQuad(phase);
+      
+      // First half: subtle zoom in to exit
+      if (phase < 0.5) {
+        float zoomProgress = map(phase, 0, 0.5f, 0, 1);
+        zoomProgress = easeInOutQuad(zoomProgress);
         
-        // Save camera state if we're just starting
-        if (phase < 0.01) {
-          savedCameraMode = currentCamera;
-          savedCameraPosition = cameraPosition.copy();
-          savedCameraZoom = currentCameraZoom;
-          currentCamera = 3; // Special camera mode for animation
-        }
+        // Much more subtle zoom (1.2f instead of 2.5f)
+        float maxZoom = 1.2f;
         
-        // Interpolate camera position to focus on exit
+        // Gentler camera movement - reduced multiplier for position
         PVector targetPosition = new PVector(
-          width/2 - levelExit.position.x * 2.5f, // Zoom target
-          height/2 - levelExit.position.y * 2.5f  // Zoom target
+          width/2 - levelExit.position.x * 1.2f, // Reduced from 2.5f
+          height/2 - levelExit.position.y * 1.2f  // Reduced from 2.5f
         );
         
         cameraPosition.x = lerp(savedCameraPosition.x, targetPosition.x, zoomProgress);
         cameraPosition.y = lerp(savedCameraPosition.y, targetPosition.y, zoomProgress);
-        currentCameraZoom = lerp(savedCameraZoom, 2.5f, zoomProgress); // Zoom in
+        currentCameraZoom = lerp(savedCameraZoom, maxZoom, zoomProgress);
       }
-      else if (phase < 0.7) {
-        // Phase 2: Stay focused on exit (40-70% of animation time)
-        // Keep the camera focused on the exit
-      }
+      // Second half: smoothly return to normal
       else {
-        // Phase 3: Return to normal (70-100% of animation time)
-        float returnProgress = map(phase, 0.7f, 1.0f, 0, 1);
+        float returnProgress = map(phase, 0.5f, 1.0f, 0, 1);
         returnProgress = easeInOutQuad(returnProgress);
         
         // Restore saved camera position and mode

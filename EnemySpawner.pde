@@ -153,15 +153,22 @@ class EnemySpawner {
     }
   }
   
-  // Spawn the exit at the right edge of the screen
+  // Modified spawnExit method in EnemySpawner class
   void spawnExit() {
     // Create exit at the right edge of the screen
     float exitX = width - 100;  // Set back from the very edge
     float exitY = height - 100; // Above the ground
     
-    // Create the exit
-    levelExit = new Level2Exit(new PVector(exitX, exitY));
-    levelExit.activate();
+    // Create the exit 
+    Level2Exit exit = new Level2Exit(new PVector(exitX, exitY));
+    exit.activate();
+    
+    // Store it in the spawner's levelExit field
+    this.levelExit = exit;
+    
+    // IMPORTANT: Also assign to the main game's levelExit variable
+    // This is the missing connection
+    levelExit = exit;
     
     // Mark as spawned
     exitSpawned = true;
@@ -318,7 +325,6 @@ class EnemySpawner {
     
     // Draw the exit if spawned
     if (exitSpawned && levelExit != null) {
-      levelExit.update();
       levelExit.draw();
     }
   }
