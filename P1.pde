@@ -191,8 +191,8 @@ void initializeLevel2() {
   character.velocity = new PVector(0, 0);
   
   // Create the level exit at the right edge of the screen (initially inactive)
-  float exitX = width - 100;
-  float exitY = height - 100;
+  float exitX = width - 50;
+  float exitY = height - 50;
   level2Exit = new Level2Exit(new PVector(exitX, exitY));
   level2Exit.deactivate(); // Make sure it starts deactivated
   

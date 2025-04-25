@@ -5,7 +5,7 @@ class EnemySpawner {
   ArrayList<HealthPack> healthPacks;
   
   // Spawn settings
-  int maxEnemies = 6;        // Maximum number of enemies to spawn
+  int maxEnemies = 1;        // Maximum number of enemies to spawn
   int currentWave = 0;       // Current wave of enemies
   int enemiesSpawned = 0;    // Number of enemies spawned so far
   
@@ -40,6 +40,10 @@ class EnemySpawner {
   Level2Exit levelExit;
   boolean exitSpawned = false;
   boolean isActive = false;  // Whether the spawner is currently active
+
+  // Exit auto-activation timer
+  long spawnerDeactivationTime = 0;
+  final long EXIT_AUTO_ACTIVATION_DELAY = 5000; // 5 seconds after spawner finishes
   
   EnemySpawner(Character player, ArrayList<Enemy> enemies) {
     this.player = player;
@@ -70,7 +74,17 @@ class EnemySpawner {
   }
   
   void update() {
-    if (!isActive && scheduledItems.isEmpty() && smokeEffects.isEmpty()) return;
+    if (!isActive && scheduledItems.isEmpty() && smokeEffects.isEmpty() && !exitSpawned) {
+        // Check if it's time to auto-activate the exit
+        long currentTime = millis();
+        if (spawnerDeactivationTime > 0 && 
+            currentTime - spawnerDeactivationTime > EXIT_AUTO_ACTIVATION_DELAY) {
+            
+            println("Auto-activating exit (5-second timer after spawning)");
+            activateExit();
+            return;
+        }
+    }
     
     long currentTime = millis();
     
@@ -124,14 +138,14 @@ class EnemySpawner {
     // If all enemies have been spawned, deactivate the spawner
     if (isActive && enemiesSpawned >= maxEnemies) {
       isActive = false;
-      println("All enemies spawned, deactivating spawner");
+      spawnerDeactivationTime = millis(); // Record when spawner was deactivated
+      println("All enemies spawned, deactivating spawner. Exit will appear in 5 seconds.");
     }
     
     // Check if all enemies are defeated and if we need to activate the exit
     checkForLevelCompletion();
   }
 
-  // Updated checkForLevelCompletion method with enhanced debugging
   void checkForLevelCompletion() {
     // Skip if the exit is already spawned/activated
     if (exitSpawned) return;
@@ -145,25 +159,32 @@ class EnemySpawner {
     println("Checking for level completion. Enemies spawned: " + enemiesSpawned + "/" + maxEnemies);
     int aliveCount = 0; // Counter for alive enemies
 
-    for (int i = 0; i < enemies.size(); i++) { // Use index loop for clarity
-      Enemy enemy = enemies.get(i);
-      if (!enemy.isDead) {
-        allDefeated = false;
-        aliveCount++; // Increment count of alive enemies
-        // Print info ONLY for enemies that are NOT dead
-        println("  Enemy " + i + " (Type: " + enemy.enemyType + ") is still alive. Health: " + enemy.getHealth());
-        // break; // Keep the break; it's more efficient
-      }
+    for (int i = 0; i < enemies.size(); i++) {
+        Enemy enemy = enemies.get(i);
+        
+        // FIX: Also check health directly in case isDead wasn't set correctly
+        if (!enemy.isDead && enemy.getHealth() <= 0) {
+            // Fix inconsistent state - enemy should be dead if health is 0
+            println("  Fixing inconsistent state: Enemy " + i + " has 0 health but not marked dead");
+            enemy.isDead = true; // Mark enemy as dead if health is 0 or less
+        }
+        
+        // Now check if the enemy is still alive
+        if (!enemy.isDead) {
+            allDefeated = false;
+            aliveCount++; // Increment count of alive enemies
+            // Print info ONLY for enemies that are NOT dead
+            println("  Enemy " + i + " (Type: " + enemy.enemyType + ") is still alive. Health: " + enemy.getHealth());
+        }
     }
 
     // Print the final result of the check
     println("  Check complete. All defeated: " + allDefeated + ". Alive count: " + aliveCount);
 
-
     // If all enemies are defeated, activate the exit
     if (allDefeated) {
-       println("  Condition met! Attempting to activate exit..."); // Added this line
-       activateExit();
+        println("  Condition met! Attempting to activate exit...");
+        activateExit();
     }
   }
   
