@@ -36,6 +36,7 @@ boolean fadingIn = true;
 boolean useProceduralGeneration = true; // Flag to use procedural generation
 ArrayList<Ammo> ammoPickups = new ArrayList<Ammo>();
 LevelExit levelExit;
+Level2Exit level2Exit;
 int currentLevel = 2; // Current level number
 boolean inLevelTransition = false;
 boolean cameraFocusOnExit = false;
@@ -166,10 +167,7 @@ void initializeLevel2() {
   ammoPickups.clear();
   healthPacks.clear();
   
-  // Reset level exit reference
-  levelExit = null;
-  
-  // Use the Perlin noise background (or whichever version you prefer)
+  // Use the Perlin noise background
   bg = new PerlinNoiseBackground();
   
   // Create a custom Platform class for level 2 ground at the correct height
@@ -178,10 +176,8 @@ void initializeLevel2() {
       super(imgPath);
     }
     
-    // Override the display method to position the ground correctly
     void display() {
       for (int x = 0; x < width; x += img.width) {
-        // Position the ground at the very bottom of the screen
         image(img, x + img.width/2, height + 10);
       }
     }
@@ -194,11 +190,19 @@ void initializeLevel2() {
   character.position = new PVector(width * 0.5f, height - character.radius);
   character.velocity = new PVector(0, 0);
   
+  // Create the level exit at the right edge of the screen (initially inactive)
+  float exitX = width - 100;
+  float exitY = height - 100;
+  Level2Exit levelExit2 = new Level2Exit(new PVector(exitX, exitY));
+  levelExit2.deactivate(); // Make sure it starts deactivated
+  
   // Initialize the enemy spawner with references to the global object lists
   enemySpawner = new EnemySpawner(character, enemies);
-  // Add references to the item lists
   enemySpawner.ammoPickups = ammoPickups;
   enemySpawner.healthPacks = healthPacks;
+  
+  // Pass the level exit reference to the enemy spawner
+  enemySpawner.levelExit = levelExit2;
   
   // Configure physics engine with minimal objects
   setupPhysicsEngine();
@@ -208,7 +212,6 @@ void initializeLevel2() {
   Thread enemySpawnerThread = new Thread(new Runnable() {
     public void run() {
       try {
-        // Wait 3 seconds before starting to spawn enemies
         Thread.sleep(3000);
         enemySpawner.start();
       } catch (InterruptedException e) {

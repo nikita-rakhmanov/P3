@@ -130,9 +130,9 @@ class EnemySpawner {
     checkForLevelCompletion();
   }
 
-  // Check if all enemies are defeated and spawn exit if needed
+  // Simplified checkForLevelCompletion method
   void checkForLevelCompletion() {
-    // Skip if the exit is already spawned
+    // Skip if the exit is already spawned/activated
     if (exitSpawned) return;
     
     // Check if all enemies have been spawned
@@ -147,36 +147,27 @@ class EnemySpawner {
       }
     }
     
-    // If all enemies are defeated, spawn the exit
+    // If all enemies are defeated, activate the exit
     if (allDefeated) {
-      spawnExit();
+      activateExit();
     }
   }
   
-  // Modified spawnExit method in EnemySpawner class
-  void spawnExit() {
-    // Create exit at the right edge of the screen
-    float exitX = width - 100;  // Set back from the very edge
-    float exitY = height - 100; // Above the ground
+  // Replaced spawnExit with activateExit
+  void activateExit() {
+    // Just activate the already-created levelExit
+    if (levelExit != null) {
+      levelExit.activate();
+      println("Level exit activated");
+    } else {
+      println("Warning: Cannot activate level exit (null reference)");
+    }
     
-    // Create the exit 
-    Level2Exit exit = new Level2Exit(new PVector(exitX, exitY));
-    exit.activate();
-    
-    // Store it in the spawner's levelExit field
-    this.levelExit = exit;
-    
-    // IMPORTANT: Also assign to the main game's levelExit variable
-    // This is the missing connection
-    levelExit = exit;
-    
-    // Mark as spawned
+    // Mark as spawned/activated
     exitSpawned = true;
     
-    println("Level exit spawned at: " + exitX + ", " + exitY);
-    
     // Create a large smoke effect at the exit location
-    SmokeEffect exitSmoke = new SmokeEffect(new PVector(exitX, exitY), 60);
+    SmokeEffect exitSmoke = new SmokeEffect(new PVector(width - 100, height - 100), 60);
     smokeEffects.add(exitSmoke);
   }
   
