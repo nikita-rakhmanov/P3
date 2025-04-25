@@ -124,32 +124,46 @@ class EnemySpawner {
     // If all enemies have been spawned, deactivate the spawner
     if (isActive && enemiesSpawned >= maxEnemies) {
       isActive = false;
+      println("All enemies spawned, deactivating spawner");
     }
     
     // Check if all enemies are defeated and if we need to activate the exit
     checkForLevelCompletion();
   }
 
-  // Simplified checkForLevelCompletion method
+  // Updated checkForLevelCompletion method with enhanced debugging
   void checkForLevelCompletion() {
     // Skip if the exit is already spawned/activated
     if (exitSpawned) return;
-    
+
     // Check if all enemies have been spawned
     if (enemiesSpawned < maxEnemies) return;
-    
+
     // Check if all enemies are defeated
     boolean allDefeated = true;
-    for (Enemy enemy : enemies) {
+    // Add this println to see when the check runs after spawning is done
+    println("Checking for level completion. Enemies spawned: " + enemiesSpawned + "/" + maxEnemies);
+    int aliveCount = 0; // Counter for alive enemies
+
+    for (int i = 0; i < enemies.size(); i++) { // Use index loop for clarity
+      Enemy enemy = enemies.get(i);
       if (!enemy.isDead) {
         allDefeated = false;
-        break;
+        aliveCount++; // Increment count of alive enemies
+        // Print info ONLY for enemies that are NOT dead
+        println("  Enemy " + i + " (Type: " + enemy.enemyType + ") is still alive. Health: " + enemy.getHealth());
+        // break; // Keep the break; it's more efficient
       }
     }
-    
+
+    // Print the final result of the check
+    println("  Check complete. All defeated: " + allDefeated + ". Alive count: " + aliveCount);
+
+
     // If all enemies are defeated, activate the exit
     if (allDefeated) {
-      activateExit();
+       println("  Condition met! Attempting to activate exit..."); // Added this line
+       activateExit();
     }
   }
   
