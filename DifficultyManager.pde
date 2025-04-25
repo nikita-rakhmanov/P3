@@ -1,157 +1,102 @@
 class DifficultyManager {
-  private int difficultyLevel; // 1-5
+  // Difficulty level (1-5)
+  private int difficultyLevel = 3; // Default is medium
   
-  // Player parameters
-  private float playerDamageMultiplier;
-  private float playerHealthMultiplier;
-  private float playerSpeedMultiplier;
-  private float playerJumpMultiplier;
+  // Enemy scaling factors
+  private float enemyCountScale = 1.0f;
+  private float enemySpawnRateScale = 1.0f;
+  private float enemyHealthScale = 1.0f;
+  private float enemyDamageScale = 1.0f;
   
-  // Enemy parameters
-  private float enemyDamageMultiplier;
-  private float enemyHealthMultiplier;
-  private float enemySpeedMultiplier;
-  private float enemyAttackSpeedMultiplier;
-  private float enemyDetectionRangeMultiplier;
-  private int maxEnemiesPerWave;
-  private float enemySpawnRateMultiplier;
+  // Pickup scaling factors
+  private float ammoSpawnChanceScale = 1.0f;
+  private float healthSpawnChanceScale = 1.0f;
   
-  // Collectible parameters
-  private float ammoPickupFrequency;
-  private float healthPickupFrequency;
-  private int ammoPerPickup;
-  private int healthPerPickup;
-  
-  private float collectibleDensity;
-  
-  // Constructor
-  public DifficultyManager(int difficultyLevel) {
-    this.difficultyLevel = constrain(difficultyLevel, 1, 5);
-    
-    // Initialize all multipliers based on difficulty
-    updateParameters();
+  DifficultyManager() {
+    // Initialize with default medium difficulty
+    setDifficultyLevel(3);
   }
   
-  // Update all parameters based on the current difficulty level
-  private void updateParameters() {
-    // Convert difficulty to a normalized value between 0.0 and 1.0
+  DifficultyManager(int level) {
+    setDifficultyLevel(level);
+  }
+  
+  void setDifficultyLevel(int level) {
+    // Clamp difficulty between 1-5
+    difficultyLevel = constrain(level, 1, 5);
+    
+    // Recalculate scaling factors based on difficulty
+    calculateScalingFactors();
+  }
+  
+  private void calculateScalingFactors() {
+    // Convert difficulty from 1-5 scale to 0.0-1.0 for calculations
     float normalizedDifficulty = (difficultyLevel - 1) / 4.0f;
     
-    // Player parameters (higher values at LOWER difficulties)
-    playerDamageMultiplier = map(normalizedDifficulty, 0, 1, 1.5f, 0.8f);
-    playerHealthMultiplier = map(normalizedDifficulty, 0, 1, 1.5f, 0.8f);
-    playerSpeedMultiplier = map(normalizedDifficulty, 0, 1, 1.2f, 0.9f);
-    playerJumpMultiplier = map(normalizedDifficulty, 0, 1, 1.2f, 0.9f);
+    // Enemy count scales non-linearly with difficulty
+    // Easy (1): 1-2 enemies, Hard (5): 5-7 enemies
+    enemyCountScale = map(normalizedDifficulty, 0, 1, 0.3f, 2.0f);
     
-    // Enemy parameters (higher values at HIGHER difficulties)
-    enemyDamageMultiplier = map(normalizedDifficulty, 0, 1, 0.7f, 1.5f);
-    enemyHealthMultiplier = map(normalizedDifficulty, 0, 1, 0.7f, 1.5f);
-    enemySpeedMultiplier = map(normalizedDifficulty, 0, 1, 0.8f, 1.4f);
-    enemyAttackSpeedMultiplier = map(normalizedDifficulty, 0, 1, 0.8f, 1.3f);
-    enemyDetectionRangeMultiplier = map(normalizedDifficulty, 0, 1, 0.7f, 1.3f);
+    // Spawn rate increases with difficulty (enemies spawn faster)
+    // Easy: 0.7x spawn rate, Hard: 1.5x spawn rate
+    enemySpawnRateScale = map(normalizedDifficulty, 0, 1, 0.7f, 2.0f);
     
-    // Enemy spawn parameters
-    maxEnemiesPerWave = (int)map(normalizedDifficulty, 0, 1, 1, 5);
-    enemySpawnRateMultiplier = map(normalizedDifficulty, 0, 1, 0.5f, 1.5f);
+    // Enemy health scales with difficulty
+    // Easy: 0.8x health, Hard: 1.5x health
+    enemyHealthScale = map(normalizedDifficulty, 0, 1, 0.8f, 1.5f);
     
-    // Collectible parameters
-    ammoPickupFrequency = map(normalizedDifficulty, 0, 1, 0.5f, 0.2f);
-    healthPickupFrequency = map(normalizedDifficulty, 0, 1, 0.5f, 0.15f);
-    ammoPerPickup = (int)map(normalizedDifficulty, 0, 1, 10, 3);
-    healthPerPickup = (int)map(normalizedDifficulty, 0, 1, 40, 15);
+    // Enemy damage scales with difficulty
+    // Easy: 0.7x damage, Hard: 1.3x damage
+    enemyDamageScale = map(normalizedDifficulty, 0, 1, 0.7f, 1.3f);
     
-    // Level generation parameter
-    collectibleDensity = map(normalizedDifficulty, 0, 1, 0.4f, 0.15f);
+    // Pickup spawn chances scale inversely with difficulty
+    // Easy: 1.5x more pickups, Hard: 0.7x fewer pickups
+    ammoSpawnChanceScale = map(normalizedDifficulty, 0, 1, 1.5f, 0.7f);
+    healthSpawnChanceScale = map(normalizedDifficulty, 0, 1, 1.5f, 0.7f);
   }
   
-  // Getters for all parameters
-  public int getDifficultyLevel() {
-    return difficultyLevel;
+  // Getters for scaling factors
+  int getDifficultyLevel() { return difficultyLevel; }
+  
+  // Calculate actual enemy count for spawner
+  int getScaledEnemyCount(int baseCount) {
+    return max(1, round(baseCount * enemyCountScale));
   }
   
-  public void setDifficultyLevel(int level) {
-    difficultyLevel = constrain(level, 1, 5);
-    updateParameters();
+  // Calculate actual spawn delay
+  long getScaledSpawnDelay(long baseDelay) {
+    return round(baseDelay / enemySpawnRateScale);
   }
   
-  // Player parameter getters
-  public float getPlayerDamageMultiplier() {
-    return playerDamageMultiplier;
+  // Calculate scaled health for enemies
+  int getScaledEnemyHealth(int baseHealth) {
+    return round(baseHealth * enemyHealthScale);
   }
   
-  public float getPlayerHealthMultiplier() {
-    return playerHealthMultiplier;
+  // Calculate scaled damage for enemies
+  int getScaledEnemyDamage(int baseDamage) {
+    return round(baseDamage * enemyDamageScale);
   }
   
-  public float getPlayerSpeedMultiplier() {
-    return playerSpeedMultiplier;
+  // Calculate scaled ammo spawn chance
+  float getScaledAmmoSpawnChance(float baseChance) {
+    return constrain(baseChance * ammoSpawnChanceScale, 0, 1);
   }
   
-  public float getPlayerJumpMultiplier() {
-    return playerJumpMultiplier;
+  // Calculate scaled health spawn chance
+  float getScaledHealthSpawnChance(float baseChance) {
+    return constrain(baseChance * healthSpawnChanceScale, 0, 1);
   }
   
-  // Enemy parameter getters
-  public float getEnemyDamageMultiplier() {
-    return enemyDamageMultiplier;
-  }
-  
-  public float getEnemyHealthMultiplier() {
-    return enemyHealthMultiplier;
-  }
-  
-  public float getEnemySpeedMultiplier() {
-    return enemySpeedMultiplier;
-  }
-  
-  public float getEnemyAttackSpeedMultiplier() {
-    return enemyAttackSpeedMultiplier;
-  }
-  
-  public float getEnemyDetectionRangeMultiplier() {
-    return enemyDetectionRangeMultiplier;
-  }
-  
-  // Enemy spawn parameter getters
-  public int getMaxEnemiesPerWave() {
-    return maxEnemiesPerWave;
-  }
-  
-  public float getEnemySpawnRateMultiplier() {
-    return enemySpawnRateMultiplier;
-  }
-  
-  // Collectible parameter getters
-  public float getAmmoPickupFrequency() {
-    return ammoPickupFrequency;
-  }
-  
-  public float getHealthPickupFrequency() {
-    return healthPickupFrequency;
-  }
-  
-  public int getAmmoPerPickup() {
-    return ammoPerPickup;
-  }
-  
-  public int getHealthPerPickup() {
-    return healthPerPickup;
-  }
-
-  
-  public float getCollectibleDensity() {
-    return collectibleDensity;
-  }
-  
-  // Helper method to get string representation of difficulty
-  public String getDifficultyName() {
+  // Get difficulty name for display
+  String getDifficultyName() {
     switch(difficultyLevel) {
-      case 1: return "Novice";
-      case 2: return "Easy";
-      case 3: return "Normal";
+      case 1: return "Easy";
+      case 2: return "Normal";
+      case 3: return "Medium";
       case 4: return "Hard";
       case 5: return "Expert";
-      default: return "Normal";
+      default: return "Medium";
     }
   }
 }

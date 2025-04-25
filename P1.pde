@@ -48,6 +48,8 @@ boolean pendingExitActivation = false;
 long exitActivationTime = 0;
 final long EXIT_ACTIVATION_DELAY = 1000; // Delay in milliseconds before activating exit
 EnemySpawner enemySpawner;
+DifficultyManager difficultyManager;
+int currentDifficulty = 3; // Default medium difficulty (1-5 scale)
 
 class PlatformObject extends PhysicsObject {
   PImage platformImage;
@@ -196,8 +198,11 @@ void initializeLevel2() {
   level2Exit = new Level2Exit(new PVector(exitX, exitY));
   level2Exit.deactivate(); // Make sure it starts deactivated
   
-  // Initialize the enemy spawner with references to the global object lists
-  enemySpawner = new EnemySpawner(character, enemies);
+  // Initialize the difficulty manager
+  difficultyManager = new DifficultyManager(currentDifficulty);
+  
+  // Initialize the enemy spawner with references to the global object lists and difficulty manager
+  enemySpawner = new EnemySpawner(character, enemies, difficultyManager);
   enemySpawner.ammoPickups = ammoPickups;
   enemySpawner.healthPacks = healthPacks;
   
@@ -402,7 +407,7 @@ void keyPressed() {
     }
     
     character.handleKeyPressed(key);
-  } else if (key == 'r' || key == 'R') { // Allow restart with 'R' key
+      } else if (key == 'r' || key == 'R') { // Allow restart with 'R' key
     resetGame();
   }
 
@@ -985,7 +990,7 @@ void displayHUD() {
   
   // Show level intro if we just changed levels
   displayLevelIntro();
-}
+  }
 
 // format milliseconds as mm:ss.ms
 String formatTime(long millis) {
@@ -1371,5 +1376,22 @@ void checkPendingExitActivation() {
     cameraFocusOnExit = true;
     cameraFocusStartTime = millis();
     pendingExitActivation = false;
+  }
+}
+
+// Add this method to change difficulty during gameplay
+void setGameDifficulty(int level) {
+  currentDifficulty = constrain(level, 1, 5);
+  
+  if (difficultyManager != null) {
+    difficultyManager.setDifficultyLevel(currentDifficulty);
+    
+    // Update the enemy spawner with the new difficulty
+    if (enemySpawner != null) {
+      enemySpawner.setDifficulty(currentDifficulty);
+    }
+    
+    println("Game difficulty set to " + currentDifficulty + 
+            " (" + difficultyManager.getDifficultyName() + ")");
   }
 }

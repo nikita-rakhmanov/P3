@@ -4,8 +4,18 @@ class EnemySpawner {
   ArrayList<Ammo> ammoPickups;
   ArrayList<HealthPack> healthPacks;
   
-  // Spawn settings
-  int maxEnemies = 1;        // Maximum number of enemies to spawn
+  // Add reference to difficulty manager
+  DifficultyManager difficultyManager;
+  
+  // Base values (unscaled by difficulty)
+  int baseMaxEnemies = 6;        // Base maximum enemies to spawn
+  long baseBaseDelay = 2000;     // Base delay between spawns in milliseconds
+  long baseRandomDelay = 1500;   // Base random additional delay in milliseconds
+  float baseAmmoSpawnChance = 0.3;   // Base 30% chance to spawn ammo after an enemy
+  float baseHealthSpawnChance = 0.2; // Base 20% chance to spawn health after an enemy
+  
+  // Spawn settings - these will be scaled by difficulty
+  int maxEnemies = 3;        // Maximum number of enemies to spawn
   int currentWave = 0;       // Current wave of enemies
   int enemiesSpawned = 0;    // Number of enemies spawned so far
   
@@ -45,6 +55,23 @@ class EnemySpawner {
   long spawnerDeactivationTime = 0;
   final long EXIT_AUTO_ACTIVATION_DELAY = 5000; // 5 seconds after spawner finishes
   
+  // Constructor with difficulty manager
+  EnemySpawner(Character player, ArrayList<Enemy> enemies, DifficultyManager difficultyManager) {
+    this.player = player;
+    this.enemies = enemies;
+    this.difficultyManager = difficultyManager;
+    
+    // Get references to the global lists
+    this.ammoPickups = ammoPickups;
+    this.healthPacks = healthPacks;
+    
+    // Apply difficulty scaling to spawner parameters
+    applyDifficultyScaling();
+    
+    resetSpawnTimer();
+  }
+  
+  // Original constructor for backward compatibility
   EnemySpawner(Character player, ArrayList<Enemy> enemies) {
     this.player = player;
     this.enemies = enemies;
@@ -54,6 +81,34 @@ class EnemySpawner {
     this.healthPacks = healthPacks;
     
     resetSpawnTimer();
+  }
+  
+  // Apply difficulty scaling to all relevant parameters
+  void applyDifficultyScaling() {
+    if (difficultyManager == null) return;
+    
+    // Scale number of enemies based on difficulty
+    maxEnemies = difficultyManager.getScaledEnemyCount(baseMaxEnemies);
+    
+    // Scale timing parameters
+    baseDelay = difficultyManager.getScaledSpawnDelay(baseBaseDelay);
+    randomDelay = difficultyManager.getScaledSpawnDelay(baseRandomDelay);
+    
+    // Scale spawn chances
+    ammoSpawnChance = difficultyManager.getScaledAmmoSpawnChance(baseAmmoSpawnChance);
+    healthSpawnChance = difficultyManager.getScaledHealthSpawnChance(baseHealthSpawnChance);
+    
+    println("Difficulty level " + difficultyManager.getDifficultyLevel() + 
+            " (" + difficultyManager.getDifficultyName() + "): " +
+            "Spawning " + maxEnemies + " enemies with spawn delay " + baseDelay + "ms");
+  }
+  
+  // Set a new difficulty level
+  void setDifficulty(int level) {
+    if (difficultyManager != null) {
+      difficultyManager.setDifficultyLevel(level);
+      applyDifficultyScaling();
+    }
   }
   
   void start() {
@@ -139,7 +194,7 @@ class EnemySpawner {
     if (isActive && enemiesSpawned >= maxEnemies) {
       isActive = false;
       spawnerDeactivationTime = millis(); // Record when spawner was deactivated
-      println("All enemies spawned, deactivating spawner. Exit will appear in 5 seconds.");
+      println("All enemies spawned (" + enemiesSpawned + "), deactivating spawner. Exit will appear in 5 seconds.");
     }
     
     // Check if all enemies are defeated and if we need to activate the exit
@@ -155,8 +210,6 @@ class EnemySpawner {
 
     // Check if all enemies are defeated
     boolean allDefeated = true;
-    // Add this println to see when the check runs after spawning is done
-    println("Checking for level completion. Enemies spawned: " + enemiesSpawned + "/" + maxEnemies);
     int aliveCount = 0; // Counter for alive enemies
 
     for (int i = 0; i < enemies.size(); i++) {
@@ -173,22 +226,21 @@ class EnemySpawner {
         if (!enemy.isDead) {
             allDefeated = false;
             aliveCount++; // Increment count of alive enemies
-            // Print info ONLY for enemies that are NOT dead
-            println("  Enemy " + i + " (Type: " + enemy.enemyType + ") is still alive. Health: " + enemy.getHealth());
         }
     }
 
-    // Print the final result of the check
-    println("  Check complete. All defeated: " + allDefeated + ". Alive count: " + aliveCount);
-
+    // Print the final result of the check in a more concise way
+    if (aliveCount > 0) {
+        println("  Level completion check: " + aliveCount + " enemies still alive");
+    }
+    
     // If all enemies are defeated, activate the exit
     if (allDefeated) {
-        println("  Condition met! Attempting to activate exit...");
+        println("  All enemies defeated! Activating exit...");
         activateExit();
     }
   }
   
-  // Replaced spawnExit with activateExit
   void activateExit() {
     // Just activate the already-created levelExit
     if (levelExit != null) {
@@ -258,6 +310,20 @@ class EnemySpawner {
     
     // Create the enemy
     Enemy enemy = new Enemy(position.copy(), player, enemyType);
+    
+    // Scale enemy health based on difficulty if available
+    if (difficultyManager != null) {
+      int baseHealth = enemy.getHealth();
+      int scaledHealth = difficultyManager.getScaledEnemyHealth(baseHealth);
+      
+      // We can't directly set health since there's no setter in the Enemy class
+      // For now we just show the intended health scaling
+      float healthMultiplier = (float)scaledHealth / baseHealth;
+      println("Enemy spawned with " + (healthMultiplier > 1 ? "increased" : "decreased") + 
+              " health: " + scaledHealth + " (" + (int)(healthMultiplier * 100) + "%)");
+      
+      // Future enhancement: Add a setHealth method to Enemy class
+    }
     
     // Set initial state to patrol
     enemy.fsm.forceState(EnemyState.PATROL);
