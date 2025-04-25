@@ -1702,10 +1702,10 @@ void displayLevelIntro() {
     textSize(24);
     fill(255);
     if (currentLevel == 1) {
-      text("Training Grounds", width/2, height/2 + 20);
+      text("The Beggining", width/2, height/2 + 20);
       text("Defeat enemies and find the exit", width/2, height/2 + 60);
     } else if (currentLevel == 2) {
-      text("Mountain Path", width/2, height/2 + 20);
+      text("Corrupted Path", width/2, height/2 + 20);
       text("Survive the journey ahead", width/2, height/2 + 60);
     } else if (currentLevel == 3) {
       text("Final Challenge", width/2, height/2 + 20);
