@@ -48,26 +48,10 @@ class Level2Exit {
     
     pushStyle();
     
-    // Draw glow effect
-    if (glowIntensity > 0) {
-      // Outer glow
-      noStroke();
-      fill(100, 150, 255, 40 * glowIntensity);
-      ellipse(position.x, position.y, exitImage.width * 1.8f, exitImage.height * 1.2f);
-      
-      // Middle glow
-      fill(150, 200, 255, 60 * glowIntensity);
-      ellipse(position.x, position.y, exitImage.width * 1.4f, exitImage.height * 1.0f);
-      
-      // Inner glow
-      fill(200, 230, 255, 80 * glowIntensity);
-      ellipse(position.x, position.y, exitImage.width * 1.0f, exitImage.height * 0.8f);
-    }
-    
-    // Draw the exit image
+    // Draw the exit image 
     imageMode(CENTER);
     
-    // Apply vibration effect
+    // slight vibration effect 
     float offsetX = vibrationAmount;
     float offsetY = vibrationAmount * 0.5f;
     

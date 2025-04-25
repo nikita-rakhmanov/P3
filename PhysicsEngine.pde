@@ -66,11 +66,13 @@ class PhysicsEngine {
             // 1. Character and Enemy/Platform
             // 2. Enemy and Platform
             // 3. Enemy and other Enemies 
+            // 4. Character and Boss Demon
             if ((objA instanceof Character && (objB instanceof Enemy || objB instanceof PlatformObject)) || 
                 ((objA instanceof Enemy || objA instanceof PlatformObject) && objB instanceof Character) ||
                 (objA instanceof Enemy && objB instanceof PlatformObject) ||
                 (objA instanceof PlatformObject && objB instanceof Enemy) ||
-                (objA instanceof Enemy && objB instanceof Enemy)) {  // Added this condition
+                (objA instanceof Character && objB instanceof BossDemon) ||
+                (objA instanceof Enemy && objB instanceof Enemy)) {  
                 continue;  // Skip to the next iteration
             }
             

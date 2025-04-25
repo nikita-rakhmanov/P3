@@ -27,7 +27,10 @@ float cameraLerpFactor = 0.1f;
 float targetCameraZoom = 1.0f;
 float currentCameraZoom = 1.0f;
 float cameraTransitionSpeed = 0.05f; 
-SoundFile bgMusic;
+SoundFile bgMusicLevel1;
+SoundFile bgMusicLevel2;
+SoundFile currentBgMusic;
+boolean musicChanging = false;
 boolean musicEnabled = true;
 float musicVolume = 0.4f; 
 float currentMusicVolume = 0.0f; 
@@ -49,7 +52,17 @@ long exitActivationTime = 0;
 final long EXIT_ACTIVATION_DELAY = 1000; // Delay in milliseconds before activating exit
 EnemySpawner enemySpawner;
 DifficultyManager difficultyManager;
-int currentDifficulty = 3; // Default medium difficulty (1-5 scale)
+int currentDifficulty = 1; // Default medium difficulty (1-5 scale)
+
+BossDemon bossDemon = null;
+
+boolean victoryPending = false;
+long bossDeathTime = 0;
+final long VICTORY_DELAY = 5500; // 5.5 seconds delay to show death animation
+
+boolean showDifficultySelection = false;
+String[] difficultyNames = {"Very Easy", "Easy", "Normal", "Hard", "Very Hard"};
+int selectedDifficulty = 2; // Default to Normal (array index + 1)
 
 class PlatformObject extends PhysicsObject {
   PImage platformImage;
@@ -74,10 +87,14 @@ void setup() {
   imageMode(CENTER);
   textMode(CENTER);
 
-  // Load and start background music
-  bgMusic = new SoundFile(this, "music/bg_song.mp3");
-  bgMusic.loop();
-  bgMusic.amp(0); // Start with volume at 0 for fade in
+  // Load all background music tracks
+  bgMusicLevel1 = new SoundFile(this, "music/bg_song.mp3");
+  bgMusicLevel2 = new SoundFile(this, "music/bg_2_song.mp3");
+  
+  // Set initial music to level 1
+  currentBgMusic = bgMusicLevel1;
+  currentBgMusic.loop();
+  currentBgMusic.amp(0); // Start with volume at 0 for fade in
   currentMusicVolume = 0.0f;
   fadingIn = true;
 
@@ -112,13 +129,16 @@ void initializeLevel() {
   coins.clear();
   ammoPickups.clear();
   healthPacks.clear();
+  bossDemon = null; // Clear boss reference
   
   // Determine which level to load
   if (currentLevel == 1) {
     initializeLevel1();
   } else if (currentLevel == 2) {
     initializeLevel2();
-  }
+  } else if (currentLevel == 3) {
+    initializeLevel3();
+  } 
   
   // Configure physics engine and other systems
   setupPhysicsEngine();
@@ -162,6 +182,9 @@ void initializeLevel1() {
   
   // Load the regular background
   bg = new Background("CharacterPack/Enviro/BG/trees_bg.png");
+
+  // Change music to level 1 theme
+  changeLevelMusic(1);
 }
 
 void initializeLevel2() {
@@ -231,6 +254,56 @@ void initializeLevel2() {
     }
   });
   enemySpawnerThread.start();
+
+  // Change music to level 2 theme
+  changeLevelMusic(2);
+}
+
+// Level 3
+void initializeLevel3() {
+  println("Initializing Level 3 (Fixed Level Design)...");
+
+  // Clear all game objects
+  platforms.clear();
+  springs.clear();
+  enemies.clear();
+  coins.clear();
+  ammoPickups.clear();
+  healthPacks.clear();
+
+  // Use the samurai environment background
+  bg = new AsciiBackground();
+
+  // Create a custom Platform class for level 2 ground at the correct height
+  class Level2Ground extends Platform {
+    Level2Ground(String imgPath) {
+      super(imgPath);
+    }
+    
+    void display() {
+      for (int x = 0; x < width; x += img.width) {
+        image(img, x + img.width/2, height + 10);
+      }
+    }
+  }
+  
+  ground = new Level2Ground("PixelArt_Samurai/Environment/PNG/Environment_Ground.png");
+  
+  // Place the player at the true ground level
+  character.position = new PVector(width * 0.5f, height - character.radius);
+  
+  // Initialize the difficulty manager
+  difficultyManager = new DifficultyManager(currentDifficulty);
+
+  // Create the Boss Demon
+  float bossGroundY = height - 50; 
+  bossDemon = new BossDemon(new PVector(width * 0.75f, bossGroundY), character);
+  
+  // Configure physics engine with minimal objects
+  setupPhysicsEngine();
+
+  // Level 3 uses the same music as level 2
+  changeLevelMusic(2);
 }
 
 // Create the fixed level (your original level design)
@@ -310,6 +383,11 @@ void setupPhysicsEngine() {
   for (Enemy enemy : enemies) {
     physicsEngine.addObject(enemy);
   }
+
+  // Add Boss Demon (if it exists for this level)
+  if (bossDemon != null) {
+      physicsEngine.addObject(bossDemon);
+  }
   
   for (Spring spring : springs) {
     physicsEngine.addObject(spring);
@@ -331,6 +409,12 @@ void setupPhysicsEngine() {
   for (Enemy enemy : enemies) {
     physicsEngine.addForceGenerator(enemy, gravity);
     physicsEngine.addForceGenerator(enemy, drag);
+  }
+
+  if (bossDemon != null) {
+      physicsEngine.addForceGenerator(bossDemon, gravity);
+      physicsEngine.addForceGenerator(bossDemon, drag);
+      println("Forces applied to Boss Demon.");
   }
 }
 
@@ -398,11 +482,33 @@ PathFinder getPathFinder() {
 // Update keyPressed to start the timer when the game begins
 void keyPressed() {
   if (!gameStarted) {
-    if (key == ENTER || key == RETURN) {
-      gameStarted = true;
-      // Start the timer when the game begins
-      gameStartTime = millis();
-      timerRunning = true;
+    if (!showDifficultySelection) {
+      // From main menu to difficulty selection
+      if (key == ENTER || key == RETURN) {
+        showDifficultySelection = true;
+      }
+    } else {
+      // On difficulty selection screen
+      if (keyCode == UP) {
+        selectedDifficulty = max(1, selectedDifficulty - 1);
+      } else if (keyCode == DOWN) {
+        selectedDifficulty = min(5, selectedDifficulty + 1);
+      } else if (key == ENTER || key == RETURN) {
+        // Start game with selected difficulty
+        gameStarted = true;
+        showDifficultySelection = false;
+        currentDifficulty = selectedDifficulty;
+        // Start the timer when the game begins
+        gameStartTime = millis();
+        timerRunning = true;
+        
+        // Apply selected difficulty
+        setGameDifficulty(currentDifficulty);
+      } else if (keyCode == ESC || key == BACKSPACE) {
+        // Return to main menu
+        showDifficultySelection = false;
+        key = 0; // Prevent ESC from quitting the game
+      }
     }
   } else if (!gameOver) { // Only process inputs when game is active
     // Camera controls
@@ -422,8 +528,8 @@ void keyPressed() {
     musicEnabled = !musicEnabled;
     if (musicEnabled) {
       // Start fading in music
-      if (!bgMusic.isPlaying()) {
-        bgMusic.loop();  // Use loop() instead of play()
+      if (!currentBgMusic.isPlaying()) {
+        currentBgMusic.loop();  // Use loop() instead of play()
       }
       fadingIn = true;
     } else {
@@ -571,6 +677,11 @@ void draw() {
     if (currentLevel == 2 && gameStarted && !gameOver && enemySpawner != null) {
       enemySpawner.update();
     }
+
+    //Update Boss Demon
+    if (bossDemon != null && !bossDemon.isDead) { // Check if null
+          bossDemon.update(); // This calls the BossFSM update internally
+    }
     
     // Update and check coins 
     updateCoins();
@@ -637,6 +748,61 @@ void draw() {
     }
   }
 
+  // check for level2Exit
+  if (currentLevel == 2 && level2Exit != null && !inLevelTransition && !gameOver) {
+    level2Exit.update();
+    
+    if (level2Exit.isPlayerInRange(character)) {
+      // Player has entered the level 2 exit - start level transition
+      inLevelTransition = true;
+      level2Exit.deactivate();
+      
+      // Transition to the next level after a short delay
+      Thread transitionThread = new Thread(new Runnable() {
+        public void run() {
+          try {
+            // Wait for a moment
+            Thread.sleep(1000);
+            
+            // Increment level and reset player position
+            currentLevel++;
+            resetPlayerForLevel(currentLevel);
+            
+            // Initialize the new level
+            initializeLevel();
+            
+            // End transition
+            inLevelTransition = false;
+          } catch (InterruptedException e) {
+            e.printStackTrace();
+          }
+        }
+      });
+      transitionThread.start();
+    }
+  }
+
+// Add Victory Condition (Level 3 Boss Defeated)
+if (currentLevel == 3 && bossDemon != null && bossDemon.isDead) {
+    // If this is the first frame the boss is detected as dead
+    if (!victoryPending && !gameOver) {
+        println("Boss defeated! Playing death animation...");
+        victoryPending = true;
+        bossDeathTime = millis();
+        if (timerRunning) {
+            gameEndTime = millis();
+            timerRunning = false;
+        }
+    }
+    
+    // Only show victory screen after the delay
+    if (victoryPending && !gameOver && millis() > bossDeathTime + VICTORY_DELAY) {
+        println("Level 3 Victory!");
+        gameOver = true; // Now trigger victory screen
+        victoryPending = false;
+    }
+}
+
   // Draw level transition effect
   if (inLevelTransition) {
     pushStyle();
@@ -667,28 +833,92 @@ void draw() {
 
 // Function to handle music fade in/out
 void updateMusicFade() {
-  if (musicEnabled) {
-    // Always fade in when music is enabled
-    currentMusicVolume += fadeSpeed;
-    if (currentMusicVolume >= musicVolume) {
-      currentMusicVolume = musicVolume;
-      fadingIn = false;
+  if (musicEnabled && !musicChanging) {
+    // Fade in when music is enabled
+    if (fadingIn) {
+      currentMusicVolume += fadeSpeed;
+      if (currentMusicVolume >= musicVolume) {
+        currentMusicVolume = musicVolume;
+        fadingIn = false;
+      }
+      currentBgMusic.amp(currentMusicVolume);
+      
+      // Make sure music is playing
+      if (!currentBgMusic.isPlaying()) {
+        currentBgMusic.loop();
+      }
     }
-    bgMusic.amp(currentMusicVolume);
-    
-    // Make sure music is playing
-    if (!bgMusic.isPlaying()) {
-      bgMusic.loop();
-    }
-  } else {
-    // Always fade out when music is disabled
+  } else if (!musicEnabled || !fadingIn) {
+    // Fade out when music is disabled or we're changing tracks
     currentMusicVolume -= fadeSpeed;
     if (currentMusicVolume <= 0) {
       currentMusicVolume = 0;
-      bgMusic.pause(); // This should now be reached more quickly
+      if (!musicEnabled && currentBgMusic.isPlaying()) {
+        currentBgMusic.pause();
+      }
     }
-    bgMusic.amp(currentMusicVolume);
+    if (currentBgMusic.isPlaying()) {
+      currentBgMusic.amp(currentMusicVolume);
+    }
   }
+}
+
+// Create a new method to change music based on level
+void changeLevelMusic(int level) {
+  // Don't change if music is disabled
+  if (!musicEnabled) return;
+  
+  // Don't change if already changing
+  if (musicChanging) return;
+  
+  // Create a final reference for use inside the thread
+  final SoundFile newMusic;
+  
+  // Select the appropriate music for the level
+  if (level == 1) {
+    newMusic = bgMusicLevel1;
+  } else {
+    // Levels 2 and 3 share the same music
+    newMusic = bgMusicLevel2;
+  }
+  
+  // If we're already playing the correct music, do nothing
+  if (newMusic == currentBgMusic) return;
+  
+  // Start music transition
+  musicChanging = true;
+  
+  // Start fading out current music
+  fadingIn = false;
+  
+  // Create a thread to handle the music transition
+  Thread musicTransitionThread = new Thread(new Runnable() {
+    public void run() {
+      try {
+        // Wait for current music to fade out
+        while (currentMusicVolume > 0.01) {
+          Thread.sleep(50);
+        }
+        
+        // Stop current music and switch to new
+        if (currentBgMusic.isPlaying()) {
+          currentBgMusic.stop();
+        }
+        
+        currentBgMusic = newMusic; // This now uses the final variable
+        currentBgMusic.loop();
+        currentBgMusic.amp(0);
+        currentMusicVolume = 0;
+        
+        // Start fading in new music
+        fadingIn = true;
+        musicChanging = false;
+      } catch (InterruptedException e) {
+        e.printStackTrace();
+      }
+    }
+  });
+  musicTransitionThread.start();
 }
 
 void handleBulletCollisions() {
@@ -710,6 +940,18 @@ void handleBulletCollisions() {
         hitDetected = true;
       }
     }
+
+    if (!hitDetected && bossDemon != null && !bossDemon.isDead && // Check boss exists and alive
+        PVector.dist(bullet.position, bossDemon.position) < bossDemon.radius + bullet.radius) {
+       println("Boss Hit by Bullet!");
+       PVector force = PVector.sub(bossDemon.position, bullet.position).normalize().mult(3); // Less knockback for boss
+       force.y = -3;
+       bossDemon.applyForce(force);
+       bossDemon.takeDamage(10); // Boss damage from bullets
+       bullet.deactivate();
+       bullets.remove(i);
+       hitDetected = true;
+    }
   }
 }
 
@@ -726,6 +968,14 @@ void handleAttackCollisions() {
         }
       }
     }
+    if (bossDemon != null && !bossDemon.isDead && character.isInAttackRange(bossDemon)) { // Use Character's range check vs Boss
+          println("Boss Hit by Melee!");
+          PVector force = PVector.sub(bossDemon.position, character.position).normalize().mult(5); // Less knockback
+          force.y = -5;
+          bossDemon.applyForce(force);
+          bossDemon.takeDamage(15); // Boss melee damage taken 
+          attackLanded = true;
+      }
   } else {
     attackLanded = false;
   }
@@ -755,6 +1005,21 @@ void handleEnemyAttacks() {
       character.takeDamage(scaledDamage);
     }
   }
+  if (bossDemon != null && !bossDemon.isDead && bossDemon.isAttacking() && // Check boss state
+        bossDemon.isInAttackRange(character) && // Use boss's range check method
+        bossDemon.isInAttackCollisionFrame()) { // Use boss's collision frame check
+
+         println("Player Hit by Boss!");
+         PVector force = PVector.sub(character.position, bossDemon.position).normalize().mult(15); // Stronger knockback
+         force.y = -15;
+         character.applyForce(force);
+
+         int bossBaseDamage = 15; // Boss deals more damage
+         int scaledBossDamage = bossBaseDamage;
+         // Apply difficulty scaling for boss
+         if (difficultyManager != null) { scaledBossDamage = difficultyManager.getScaledEnemyDamage(bossBaseDamage); }
+         character.takeDamage(scaledBossDamage);
+    }
 }
 
 void handlePlatformCollisions() {
@@ -860,6 +1125,68 @@ void handleEnemyPlatformCollisions() {
       enemy.velocity.y = 0.1; // Start falling if not already falling
     }
   }
+  
+  // Handle Boss Demon platform collisions
+  if (bossDemon != null && !bossDemon.isDead) {
+
+    float groundLevelBoss = height - 30;
+
+    if (bossDemon.radius <= 0) {
+       bossDemon.radius = 30; 
+    }
+    float bossFeetY = bossDemon.position.y + bossDemon.radius;
+    boolean bossOnSomething = false;
+
+    // Check if boss is on the ground
+    if (bossFeetY >= groundLevelBoss - 5) { 
+      bossDemon.position.y = groundLevelBoss - bossDemon.radius; // Set position precisely above ground
+      if (bossDemon.velocity.y > 0) { // Only stop downward velocity
+         bossDemon.velocity.y = 0;
+      }
+      bossOnSomething = true;
+    }
+
+    // Only check platforms if boss is above ground level
+    if (!bossOnSomething) { 
+      // Check if boss is on any platform
+      for (PlatformObject platform : platforms) {
+        float platformWidth = platform.platformImage.width;
+        float platformHeight = platform.platformImage.height;
+        float platformTopY = platform.position.y - platformHeight/2;
+        float platformLeftX = platform.position.x - platformWidth/2;
+        float platformRightX = platform.position.x + platformWidth/2;
+
+        // Check horizontal overlap (using boss radius for approximation)
+        boolean horizontalOverlap = (bossDemon.position.x + bossDemon.radius * 0.8f > platformLeftX) &&
+                                    (bossDemon.position.x - bossDemon.radius * 0.8f < platformRightX);
+
+        if (horizontalOverlap) {
+          // Check if boss is near the top of the platform and falling/stable
+          boolean isFallingOntoTop = bossDemon.velocity.y >= -0.1f && // Allow for slight upward velocity if just landed
+                                     bossFeetY >= platformTopY - 5 && // Feet are near or slightly below platform top
+                                     bossFeetY <= platformTopY + 15; // Feet are not too far below platform top
+
+          if (isFallingOntoTop) {
+            // Place boss on top of platform
+            bossDemon.position.y = platformTopY - bossDemon.radius;
+            if (bossDemon.velocity.y > 0) { // Only stop downward velocity
+              bossDemon.velocity.y = 0;
+            }
+            bossOnSomething = true;
+            break; // Exit platform loop once landed on one
+          }
+        }
+      }
+    }
+
+    // If boss is not on ground or any platform, ensure it falls
+    if (!bossOnSomething && bossDemon.velocity.y <= 0) { // Check if not moving down or moving up
+       // Only apply downward velocity if it's not already falling significantly
+       if(bossDemon.velocity.y > -0.1) { // Avoid overriding upward bounces immediately
+          bossDemon.velocity.y = 0.1f; // Start falling gently
+       }
+    }
+  }
 }
 
 void checkSprings() {
@@ -942,6 +1269,10 @@ void drawGameObjects() {
     enemy.draw();
   }
 
+  if (bossDemon != null) { // Check if null
+      bossDemon.draw();
+  }
+
   // Draw ammo pickups
   for (Ammo ammo : ammoPickups) {
     ammo.draw();
@@ -975,10 +1306,10 @@ void displayHUD() {
   for (int i = 0; i < enemies.size(); i++) {
     if (!enemies.get(i).isDead) {
       fill(255, 0, 0); // Red for alive enemies
-      text("Enemy " + (i+1) + ": " + enemies.get(i).getHealth(), width - 200, 50 + i * 30);
+      text("Enemy " + (i+1) + ": " + enemies.get(i).getHealth(), width - 170, 50 + i * 30);
     } else {
       fill(0, 255, 0); // Green for defeated enemies
-      text("Enemy " + (i+1) + ": Defeated", width - 200, 50 + i * 30);
+      text("Enemy " + (i+1) + ": Defeated", width - 170, 50 + i * 30);
     }
   }
   
@@ -1001,6 +1332,33 @@ void displayHUD() {
     // Display final time after victory
     long elapsedTime = gameEndTime - gameStartTime;
     text("Time: " + formatTime(elapsedTime), 50, 80);
+  }
+
+  // <<< Boss Health Display >>>
+  if (currentLevel == 3 && bossDemon != null) { // Check level and boss exists
+      pushStyle();
+      rectMode(CORNER); // CORNER for drawing bars
+      float maxBossHealth = 500.0f; // Store max health
+      float bossHealthPercentage = max(0, (float)bossDemon.getHealth() / maxBossHealth); // Ensure >= 0
+
+      float barWidth = width * 0.6f; // Boss health bar wide
+      float barHeight = 20;
+      float barX = (width - barWidth) / 2; // Centered horizontally
+      float barY = 30; // Near top of screen
+
+      // Background
+      fill(50, 50, 50, 200); // Semi-transparent dark grey
+      noStroke();
+      rect(barX, barY, barWidth, barHeight, 3); // Slight rounding
+
+      // Foreground (Current Health)
+      color healthColor = lerpColor(color(200, 0, 0), color(0, 200, 0), bossHealthPercentage * bossHealthPercentage); // Skew towards red faster
+      fill(healthColor);
+      rect(barX, barY, barWidth * bossHealthPercentage, barHeight, 3);
+
+      rectMode(CENTER); // Reset rectMode
+      textAlign(LEFT, BASELINE); // Reset alignment
+      popStyle();
   }
   
   // Game over message 
@@ -1031,22 +1389,50 @@ void displayStartScreen() {
   textAlign(CENTER, CENTER);
   text("OVER S∞∞N", width/2, height/3 - 40);
   
-  // Controls section
-  textSize(30);
-  text("CONTROLS", width/2, height/2 - 60);
-  
-  textSize(24);
-  int yPos = height/2;
-  text("A / D - Move left / right", width/2, yPos);
-  text("W - Jump", width/2, yPos + 35);
-  text("SPACE - Attack", width/2, yPos + 70);
-  text("SHIFT - Glide", width/2, yPos + 105);
-  text("M - Toggle music", width/2, yPos + 140);
-  
-  // Start prompt
-  textSize(30);
-  fill(255, 255, 0);
-  text("Press ENTER to start", width/2, height - 100);
+  if (!showDifficultySelection) {
+    // Controls section
+    textSize(30);
+    text("CONTROLS", width/2, height/2 - 60);
+    
+    textSize(24);
+    int yPos = height/2;
+    text("A / D - Move left / right", width/2, yPos);
+    text("W - Jump", width/2, yPos + 35);
+    text("SPACE - Attack", width/2, yPos + 70);
+    text("SHIFT - Glide", width/2, yPos + 105);
+    text("M - Toggle music", width/2, yPos + 140);
+    
+    // Start prompt
+    textSize(30);
+    fill(255, 255, 0);
+    text("Press ENTER to select difficulty", width/2, height - 100);
+  } else {
+    // Difficulty selection screen
+    textSize(40);
+    fill(255);
+    text("SELECT DIFFICULTY", width/2, height/2 - 100);
+    
+    // Draw difficulty options
+    for (int i = 0; i < difficultyNames.length; i++) {
+      int diffLevel = i + 1;
+      float yPos = height/2 - 20 + (i * 50);
+      
+      // Highlight selected difficulty
+      if (diffLevel == selectedDifficulty) {
+        fill(255, 215, 0); // Gold for selected
+        rect(width/2 - 150, yPos - 20, 300, 40, 5);
+      }
+      
+      fill(diffLevel == selectedDifficulty ? 0 : 255); // Black text on gold, white otherwise
+      textSize(24);
+      text(diffLevel + ": " + difficultyNames[i], width/2, yPos);
+    }
+    
+    // Instructions
+    fill(255);
+    textSize(20);
+    text("Use UP/DOWN arrows to select, ENTER to confirm", width/2, height/2 + 250);
+  }
   
   // Reset text alignment
   textAlign(LEFT, BASELINE);
@@ -1056,6 +1442,9 @@ void displayGameOver() {
   fill(0, 0, 0, 150);
   rect(0, 0, width, height);
   
+  // Set text alignment once for all text
+  textAlign(CENTER, CENTER);
+  
   // Check if player died or if they won
   boolean playerDied = character.isDead;
   
@@ -1063,13 +1452,29 @@ void displayGameOver() {
     // Game over text - defeat
     fill(255, 0, 0);
     textSize(80);
-    textAlign(CENTER, CENTER);
     text("GAME OVER", width/2, height/2 - 40);
-  } else {
-    // Victory text - all enemies defeated and coin collected
+  }
+  // If player isn't dead, check for victory conditions
+  else if (currentLevel == 3 && bossDemon != null && bossDemon.isDead) {
+      // Boss Victory Message
+      fill(255, 215, 0); // Gold color
+      textSize(80);
+      text("VICTORY!", width/2, height/2 - 60);
+
+      fill(255);
+      textSize(30);
+      text("The Demon Lord lies defeated!", width/2, height/2); // Boss specific text
+
+      // Show the final time
+      textSize(24);
+      if (gameEndTime > 0) { // Make sure timer stopped
+           text("Your time: " + formatTime(gameEndTime - gameStartTime), width/2, height/2 + 50);
+      }
+  } 
+  else {
+    // Regular victory text - all enemies defeated and coin collected
     fill(255, 215, 0); // Gold color
     textSize(80);
-    textAlign(CENTER, CENTER);
     text("VICTORY!", width/2, height/2 - 40);
     
     fill(255);
@@ -1086,7 +1491,7 @@ void displayGameOver() {
   textSize(30);
   text("Press 'R' to restart", width/2, height/2 + 100);
   
-  // Reset text alignment
+  // Reset text alignment to default for the rest of the game
   textAlign(LEFT, BASELINE);
 }
 
@@ -1112,9 +1517,18 @@ void resetGame() {
   coins.clear();
   ammoPickups.clear();
   healthPacks.clear();
+  bossDemon = null; // Reset boss
   
   // Recreate character
   character = new Character(new PVector(width / 2, height - 30));
+  
+  // Reset victory sequence flags
+  victoryPending = false;
+  bossDeathTime = 0;
+  
+  // Reset menu state
+  gameStarted = false;
+  showDifficultySelection = false;
   
   initializeLevel();
   
@@ -1124,12 +1538,15 @@ void resetGame() {
   currentCameraZoom = 1.0f;
   targetCameraZoom = 1.0f;
 
+  // Reset music to level 1
+  changeLevelMusic(1);
+
   // If music was disabled, keep it that way
-  if (musicEnabled && !bgMusic.isPlaying()) {
-    bgMusic.loop();
+  if (musicEnabled && !currentBgMusic.isPlaying()) {
+    currentBgMusic.loop();
     fadingIn = true;
     currentMusicVolume = 0;
-    bgMusic.amp(0);
+    currentBgMusic.amp(0);
   }
 }
 
@@ -1252,6 +1669,8 @@ void resetPlayerForLevel(int level) {
     character.position = new PVector(width / 2, height - 30);
   } else if (level == 2) {
     character.position = new PVector(width * 0.2f, height - 30);
+  } else if (level == 3) {
+    character.position = new PVector(width * 0.2f, height - 30);
   }
   
   // Reset player velocity
@@ -1288,6 +1707,9 @@ void displayLevelIntro() {
     } else if (currentLevel == 2) {
       text("Mountain Path", width/2, height/2 + 20);
       text("Survive the journey ahead", width/2, height/2 + 60);
+    } else if (currentLevel == 3) {
+      text("Final Challenge", width/2, height/2 + 20);
+      text("Face the ultimate boss", width/2, height/2 + 60);
     }
     
     popStyle();
