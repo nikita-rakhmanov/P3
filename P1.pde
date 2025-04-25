@@ -193,8 +193,8 @@ void initializeLevel2() {
   // Create the level exit at the right edge of the screen (initially inactive)
   float exitX = width - 100;
   float exitY = height - 100;
-  Level2Exit levelExit2 = new Level2Exit(new PVector(exitX, exitY));
-  levelExit2.deactivate(); // Make sure it starts deactivated
+  level2Exit = new Level2Exit(new PVector(exitX, exitY));
+  level2Exit.deactivate(); // Make sure it starts deactivated
   
   // Initialize the enemy spawner with references to the global object lists
   enemySpawner = new EnemySpawner(character, enemies);
@@ -202,7 +202,7 @@ void initializeLevel2() {
   enemySpawner.healthPacks = healthPacks;
   
   // Pass the level exit reference to the enemy spawner
-  enemySpawner.levelExit = levelExit2;
+  enemySpawner.levelExit = level2Exit;
   
   // Configure physics engine with minimal objects
   setupPhysicsEngine();
@@ -922,9 +922,11 @@ void drawGameObjects() {
     ammo.draw();
   }
 
-  // Draw the level exit if it exists
-  if (levelExit != null) {
+  // Draw the appropriate level exit based on current level
+  if (currentLevel == 1 && levelExit != null) {
     levelExit.draw();
+  } else if (currentLevel == 2 && level2Exit != null) {
+    level2Exit.draw();
   }
 
   // Draw spawn effects if we're in level 2
