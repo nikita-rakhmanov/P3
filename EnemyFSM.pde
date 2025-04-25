@@ -160,6 +160,15 @@ class PatrolStateHandler implements EnemyStateHandler {
     Enemy enemy = fsm.getOwner();
     enemy.steeringController.clearBehaviors();
     
+    // Base acceleration value to be scaled by difficulty
+    float baseAcceleration = 0.3f;
+    float scaledAcceleration = baseAcceleration;
+    
+    // Apply difficulty scaling if available
+    if (difficultyManager != null) {
+      scaledAcceleration = difficultyManager.getScaledEnemySpeed(baseAcceleration);
+    }
+    
     // Customize patrol behavior based on enemy type
     switch(enemy.getEnemyType()) {
       case 1: // Aggressive 
@@ -174,7 +183,11 @@ class PatrolStateHandler implements EnemyStateHandler {
       case 4: // Evasive
         patrolWidth = 100.0f;
         // Add flee behavior to move away from player even during patrol
-        enemy.steeringController.addBehavior(new Flee(enemy.player.position, 1.2f, 200), 0.8f);
+        enemy.steeringController.addBehavior(
+            new Flee(enemy.player.position, scaledAcceleration * 1.2f, 200), 0.8f);
+        break;
+      case 5: // Spearman
+        patrolWidth = 120.0f;
         break;
     }
     
@@ -182,9 +195,9 @@ class PatrolStateHandler implements EnemyStateHandler {
     patrolStart = new PVector(enemy.position.x - patrolWidth/2, enemy.position.y);
     patrolEnd = new PVector(enemy.position.x + patrolWidth/2, enemy.position.y);
     
-    // Add wander behavior for patrolling 
+    // Add wander behavior for patrolling with scaled acceleration
     enemy.steeringController.addBehavior(
-      new BoundedWander(0.3f, 30, 15, 
+      new BoundedWander(scaledAcceleration, 30, 15, 
                        patrolStart.x, 
                        patrolEnd.x, 
                        enemy.position.y), 1.0f);
@@ -301,37 +314,61 @@ class ChaseStateHandler implements EnemyStateHandler {
   }
   
   private void setupSteeringBehaviors(Enemy enemy) {
-    // fallback behavior if pathfinding fails
-    float acceleration = 0.9f;
+    // Base acceleration values for different enemy types
+    float baseAcceleration = 0.9f;
     float weight = 1.0f;
     
+    // Determine base values by enemy type
     switch(enemy.getEnemyType()) {
       case 1: // Aggressive chaser
-        acceleration = 1.2f;
+        baseAcceleration = 1.2f;
         weight = 1.0f;
         break;
       case 2: // Mixed behavior
-        acceleration = 0.7f;
+        baseAcceleration = 0.7f;
         weight = 0.8f;
-        enemy.steeringController.addBehavior(new Wander(0.3f, 50, 30), 0.2f);
         break;
       case 3: // Platform enemy
-        acceleration = 0.5f;
+        baseAcceleration = 0.5f;
         weight = 0.6f;
         break;
       case 4: // Evasive enemy
-        acceleration = 0.6f;
+        baseAcceleration = 0.6f;
         weight = 0.4f;
-        enemy.steeringController.addBehavior(new Flee(enemy.player.position, 1f, 100), 0.6f);
         break;
       case 5: // Spearman enemy - slower than assassin type 1
-        acceleration = 0.7f; // Lower acceleration than type 1
+        baseAcceleration = 0.7f; // Lower acceleration than type 1
         weight = 1.0f;
         break;
     }
     
+    // Apply difficulty scaling if available
+    float scaledAcceleration = baseAcceleration;
+    if (difficultyManager != null) {
+      scaledAcceleration = difficultyManager.getScaledEnemySpeed(baseAcceleration);
+      
+      // Debug output if debug path is enabled
+      if (showDebugPath) {
+        println("Enemy Type " + enemy.getEnemyType() + 
+                " - Base speed: " + baseAcceleration + 
+                ", Scaled to: " + scaledAcceleration + 
+                " (x" + difficultyManager.getRawEnemySpeedScale() + ")");
+      }
+    }
+    
+    // Add seek behavior with difficulty-scaled acceleration
     enemy.steeringController.addBehavior(
-      new Seek(enemy.player.position, acceleration), weight);
+      new Seek(enemy.player.position, scaledAcceleration), weight);
+    
+    // Add appropriate behaviors based on enemy type
+    if (enemy.getEnemyType() == 2) {
+      // Add wander for mixed behavior
+      enemy.steeringController.addBehavior(new Wander(scaledAcceleration * 0.3f, 50, 30), 0.2f);
+    } else if (enemy.getEnemyType() == 4) {
+      // Add flee for evasive enemy, also scaled by difficulty
+      enemy.steeringController.addBehavior(
+        new Flee(enemy.player.position, scaledAcceleration * 1.0f, 100), 0.6f);
+    }
   }
   
   private void updatePathFollowBehavior(Enemy enemy) {
@@ -343,40 +380,58 @@ class ChaseStateHandler implements EnemyStateHandler {
       }
     }
     
-    // Add a new PathFollow behavior with the current path
+    // Base values for different enemy types
+    float baseAcceleration = 0.9f;
     float arrivalRadius = 15.0f;
-    float acceleration = 0.9f;
     float weight = 1.0f;
     
+    // Determine base values by enemy type
     switch(enemy.getEnemyType()) {
       case 1: // Aggressive
-        acceleration = 1.2f;
+        baseAcceleration = 1.2f;
         arrivalRadius = 12.0f;
         break;
       case 2: // Mixed
-        acceleration = 0.7f;
+        baseAcceleration = 0.7f;
         arrivalRadius = 15.0f;
         break;
       case 3: // Platform
-        acceleration = 0.5f;
+        baseAcceleration = 0.5f;
         arrivalRadius = 18.0f;
         weight = 0.8f;
         break;
       case 4: // Evasive
-        acceleration = 0.6f;
+        baseAcceleration = 0.6f;
         arrivalRadius = 20.0f;
         weight = 0.7f;
-        enemy.steeringController.addBehavior(new Flee(enemy.player.position, 0.4f, 80), 0.25f);
         break;
       case 5: // Spearman - slower than assassin type 1
-        acceleration = 0.8f; // Lower acceleration
+        baseAcceleration = 0.8f; // Lower acceleration
         arrivalRadius = 14.0f; // Slightly higher than assassin
         break;
     }
     
-    PathFollow pathFollow = new PathFollow(currentPath, arrivalRadius, acceleration);
+    // Apply difficulty scaling if available
+    float scaledAcceleration = baseAcceleration;
+    if (difficultyManager != null) {
+      scaledAcceleration = difficultyManager.getScaledEnemySpeed(baseAcceleration);
+    }
+    
+    // Add path follow behavior with scaled acceleration
+    PathFollow pathFollow = new PathFollow(currentPath, arrivalRadius, scaledAcceleration);
     pathFollow.setDebugDraw(showDebugPath);
     enemy.steeringController.addBehavior(pathFollow, weight);
+    
+    // Add flee behavior for evasive enemies (type 4)
+    if (enemy.getEnemyType() == 4 && difficultyManager != null) {
+      float fleeAcceleration = difficultyManager.getScaledEnemySpeed(0.4f);
+      enemy.steeringController.addBehavior(
+        new Flee(enemy.player.position, fleeAcceleration, 80), 0.25f);
+    } else if (enemy.getEnemyType() == 4) {
+      // Without difficulty manager
+      enemy.steeringController.addBehavior(
+        new Flee(enemy.player.position, 0.4f, 80), 0.25f);
+    }
   }
   
   void update() {

@@ -51,7 +51,7 @@ class DifficultyManager {
     enemyDamageScale = map(normalizedDifficulty, 0, 1, 0.7f, 1.3f);
     
     // Enemy speed scales with difficulty
-    // Easy: 0.8x speed, Hard: 1.4x speed
+    // Easy: 0.8x speed, Hard: 1.2x speed
     enemySpeedScale = map(normalizedDifficulty, 0, 1, 0.8f, 1.4f);
     
     // Pickup spawn chances scale inversely with difficulty
