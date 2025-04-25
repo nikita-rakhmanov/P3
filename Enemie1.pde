@@ -32,6 +32,9 @@ class Enemy extends PhysicsObject {
         this.player = player;
         this.enemyType = enemyType;
         
+        // Initialize with default health
+        this.health = 100;
+        
         // Load different graphics based on enemy type
         // Type 5 will be our spearman
         if (enemyType == 5) {
@@ -54,6 +57,16 @@ class Enemy extends PhysicsObject {
         
         // Initialize the FSM
         fsm = new EnemyFSM(this);
+    }
+
+    // Add this method to set health based on difficulty scaling
+    public void setHealth(int newHealth) {
+        this.health = newHealth;
+    }
+
+    // Make sure getHealth() returns the actual health value
+    public int getHealth() {
+        return this.health;
     }
 
     // Frame loading methods 
@@ -328,11 +341,6 @@ class Enemy extends PhysicsObject {
 
     public boolean isAttacking() {
         return isAttacking;
-    }
-
-    // get health
-    public int getHealth() {
-        return health;
     }
 
     public int getEnemyType() {

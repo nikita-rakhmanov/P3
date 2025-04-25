@@ -313,16 +313,16 @@ class EnemySpawner {
     
     // Scale enemy health based on difficulty if available
     if (difficultyManager != null) {
-      int baseHealth = enemy.getHealth();
-      int scaledHealth = difficultyManager.getScaledEnemyHealth(baseHealth);
-      
-      // We can't directly set health since there's no setter in the Enemy class
-      // For now we just show the intended health scaling
-      float healthMultiplier = (float)scaledHealth / baseHealth;
-      println("Enemy spawned with " + (healthMultiplier > 1 ? "increased" : "decreased") + 
-              " health: " + scaledHealth + " (" + (int)(healthMultiplier * 100) + "%)");
-      
-      // Future enhancement: Add a setHealth method to Enemy class
+        int baseHealth = enemy.getHealth();
+        int scaledHealth = difficultyManager.getScaledEnemyHealth(baseHealth);
+        
+        // Apply the scaled health to the enemy
+        enemy.setHealth(scaledHealth);
+        
+        // Show the health scaling in debug output
+        float healthMultiplier = (float)scaledHealth / baseHealth;
+        println("Enemy spawned with " + (healthMultiplier > 1 ? "increased" : "decreased") + 
+                " health: " + scaledHealth + " (" + (int)(healthMultiplier * 100) + "%)");
     }
     
     // Set initial state to patrol

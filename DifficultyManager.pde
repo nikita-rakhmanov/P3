@@ -7,6 +7,7 @@ class DifficultyManager {
   private float enemySpawnRateScale = 1.0f;
   private float enemyHealthScale = 1.0f;
   private float enemyDamageScale = 1.0f;
+  private float enemySpeedScale = 1.0f;  // New variable for enemy speed scaling
   
   // Pickup scaling factors
   private float ammoSpawnChanceScale = 1.0f;
@@ -49,6 +50,10 @@ class DifficultyManager {
     // Easy: 0.7x damage, Hard: 1.3x damage
     enemyDamageScale = map(normalizedDifficulty, 0, 1, 0.7f, 1.3f);
     
+    // Enemy speed scales with difficulty
+    // Easy: 0.8x speed, Hard: 1.4x speed
+    enemySpeedScale = map(normalizedDifficulty, 0, 1, 0.8f, 1.4f);
+    
     // Pickup spawn chances scale inversely with difficulty
     // Easy: 1.5x more pickups, Hard: 0.7x fewer pickups
     ammoSpawnChanceScale = map(normalizedDifficulty, 0, 1, 1.5f, 0.7f);
@@ -78,6 +83,11 @@ class DifficultyManager {
     return round(baseDamage * enemyDamageScale);
   }
   
+  // Calculate scaled speed/acceleration for enemies
+  float getScaledEnemySpeed(float baseSpeed) {
+    return baseSpeed * enemySpeedScale;
+  }
+  
   // Calculate scaled ammo spawn chance
   float getScaledAmmoSpawnChance(float baseChance) {
     return constrain(baseChance * ammoSpawnChanceScale, 0, 1);
@@ -98,5 +108,15 @@ class DifficultyManager {
       case 5: return "Expert";
       default: return "Medium";
     }
+  }
+  
+  // Get the raw enemy damage scale factor (useful for debugging)
+  float getRawEnemyDamageScale() {
+    return enemyDamageScale;
+  }
+  
+  // Get the raw enemy speed scale factor (useful for debugging)
+  float getRawEnemySpeedScale() {
+    return enemySpeedScale;
   }
 }

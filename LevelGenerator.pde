@@ -15,14 +15,17 @@ class LevelGenerator {
   ArrayList<Ammo> ammoPickups = new ArrayList<Ammo>();
   ArrayList<HealthPack> healthPacks = new ArrayList<HealthPack>();
   LevelExit levelExit = null;
+
+  DifficultyManager difficultyManager;
   
   // Temporary pathfinding components for validation
   GridMap tempGridMap;
   PathFinder tempPathFinder;
   
   // Constructor
-  LevelGenerator() {
+  LevelGenerator(DifficultyManager difficultyManager) {
     // Default constructor
+    this.difficultyManager = difficultyManager;
   }
   
   // Generate a complete level with validation
@@ -34,6 +37,7 @@ class LevelGenerator {
     coins.clear();
     ammoPickups.clear();
     healthPacks.clear();
+
     
     // Generate-and-test approach: keep generating until we get a valid level
     boolean validLevel = false;
@@ -624,6 +628,12 @@ class LevelGenerator {
       enemy4 = new Enemy(new PVector(width * 0.65f, height - 350), player, 4);
     }
     
+    // Apply difficulty scaling to enemy health
+    scaleEnemyHealth(enemy1);
+    scaleEnemyHealth(enemy2);
+    scaleEnemyHealth(enemy3);
+    scaleEnemyHealth(enemy4);
+    
     // Add enemies to the list
     enemies.add(enemy1);
     enemies.add(enemy2);
@@ -635,6 +645,27 @@ class LevelGenerator {
     enemies.get(1).fsm.forceState(EnemyState.PATROL);
     enemies.get(2).fsm.forceState(EnemyState.IDLE);
     enemies.get(3).fsm.forceState(EnemyState.PATROL);
+  }
+
+  // Helper method to scale enemy health based on difficulty
+  private void scaleEnemyHealth(Enemy enemy) {
+    if (difficultyManager == null) return;
+    
+    // Get base health
+    int baseHealth = enemy.getHealth();
+    
+    // Scale health based on difficulty
+    int scaledHealth = difficultyManager.getScaledEnemyHealth(baseHealth);
+    
+    // Apply the scaled health
+    enemy.setHealth(scaledHealth);
+    
+    // Optional debug output
+    float healthMultiplier = (float)scaledHealth / baseHealth;
+    String difficultyName = difficultyManager.getDifficultyName();
+    println("Level 1 Enemy (Type " + enemy.enemyType + ") scaled health: " + 
+            scaledHealth + " (" + (int)(healthMultiplier * 100) + "%) at " + 
+            difficultyName + " difficulty");
   }
   
   // Place coin at the top platform (goal)
@@ -652,45 +683,79 @@ class LevelGenerator {
   }
 
   void placeAmmoPickups() {
-      // Place 2-3 ammo pickups around the level based on difficulty
-      int numAmmoPickups = int(random(1, 3)); 
-      
-      // Find platforms at different heights for distribution
-      ArrayList<PlatformObject> lowPlatforms = findPlatformsAtHeight(height - 150, 30);
-      ArrayList<PlatformObject> midPlatforms = findPlatformsAtHeight(height - 270, 30);
-      ArrayList<PlatformObject> highPlatforms = findPlatformsAtHeight(height - 330, 30);
-      
-      // Make sure we have platforms at each level
-      if (lowPlatforms.isEmpty() || midPlatforms.isEmpty() || highPlatforms.isEmpty()) {
-          // Fallback placements if we don't have all platform levels
-          ammoPickups.add(new Ammo(new PVector(width * 0.3f, height - 200)));
-          ammoPickups.add(new Ammo(new PVector(width * 0.7f, height - 200)));
-          return;
-      }
-      
-      // Strategic placement at different heights
-      // Always place one at low level for initial gameplay
-      if (!lowPlatforms.isEmpty()) {
-          PlatformObject platform = lowPlatforms.get(int(random(lowPlatforms.size())));
-          ammoPickups.add(new Ammo(new PVector(platform.position.x, platform.position.y - 20)));
-      }
-      
-      // Place one at mid level
-      if (!midPlatforms.isEmpty() && numAmmoPickups >= 2) {
-          PlatformObject platform = midPlatforms.get(int(random(midPlatforms.size())));
-          ammoPickups.add(new Ammo(new PVector(platform.position.x, platform.position.y - 20)));
-      }
-      
-      // Place one at high level if we want 3 pickups
-      if (!highPlatforms.isEmpty() && numAmmoPickups >= 3) {
-          PlatformObject platform = highPlatforms.get(int(random(highPlatforms.size())));
-          ammoPickups.add(new Ammo(new PVector(platform.position.x, platform.position.y - 20)));
-      }
-  }
+    // Use difficulty manager to scale number of pickups (if available)
+    int baseNumAmmoPickups = int(random(1, 3));
+    int numAmmoPickups = baseNumAmmoPickups;
+    
+    // Scale based on difficulty if difficultyManager exists
+    if (difficultyManager != null) {
+        // Calculate max pickups based on difficulty
+        float scaledMax = baseNumAmmoPickups * difficultyManager.getScaledAmmoSpawnChance(1.0f);
+        
+        // Round to nearest integer, with minimum of 1
+        numAmmoPickups = max(1, round(scaledMax));
+        
+        if (showDebugPath) { // Use existing debug flag
+            println("Ammo pickups: Base count " + baseNumAmmoPickups + 
+                   ", Scaled to " + numAmmoPickups + 
+                   " at difficulty " + difficultyManager.getDifficultyLevel());
+        }
+    }
+    
+    // Find platforms at different heights for distribution
+    ArrayList<PlatformObject> lowPlatforms = findPlatformsAtHeight(height - 150, 30);
+    ArrayList<PlatformObject> midPlatforms = findPlatformsAtHeight(height - 270, 30);
+    ArrayList<PlatformObject> highPlatforms = findPlatformsAtHeight(height - 330, 30);
+    
+    // Make sure we have platforms at each level
+    if (lowPlatforms.isEmpty() || midPlatforms.isEmpty() || highPlatforms.isEmpty()) {
+        // Fallback placements if we don't have all platform levels
+        ammoPickups.add(new Ammo(new PVector(width * 0.3f, height - 200)));
+        if (numAmmoPickups >= 2) {
+            ammoPickups.add(new Ammo(new PVector(width * 0.7f, height - 200)));
+        }
+        return;
+    }
+    
+    // Strategic placement at different heights
+    // Always place one at low level for initial gameplay
+    if (!lowPlatforms.isEmpty()) {
+        PlatformObject platform = lowPlatforms.get(int(random(lowPlatforms.size())));
+        ammoPickups.add(new Ammo(new PVector(platform.position.x, platform.position.y - 20)));
+    }
+    
+    // Place one at mid level
+    if (!midPlatforms.isEmpty() && numAmmoPickups >= 2) {
+        PlatformObject platform = midPlatforms.get(int(random(midPlatforms.size())));
+        ammoPickups.add(new Ammo(new PVector(platform.position.x, platform.position.y - 20)));
+    }
+    
+    // Place one at high level if we want 3 pickups
+    if (!highPlatforms.isEmpty() && numAmmoPickups >= 3) {
+        PlatformObject platform = highPlatforms.get(int(random(highPlatforms.size())));
+        ammoPickups.add(new Ammo(new PVector(platform.position.x, platform.position.y - 20)));
+    }
+}
 
-  void placeHealthPacks() {
-    // Place 1-2 health packs in the level
-    int numHealthPacks = int(random(1, 3));
+void placeHealthPacks() {
+    // Use difficulty manager to scale number of health packs
+    int baseNumHealthPacks = int(random(1, 3));
+    int numHealthPacks = baseNumHealthPacks;
+    
+    // Scale based on difficulty if difficultyManager exists
+    if (difficultyManager != null) {
+        // Calculate max health packs based on difficulty
+        float scaledMax = baseNumHealthPacks * difficultyManager.getScaledHealthSpawnChance(1.0f);
+        
+        // Round to nearest integer, with minimum of 1
+        numHealthPacks = max(1, round(scaledMax));
+        
+        if (showDebugPath) { // Use existing debug flag
+            println("Health packs: Base count " + baseNumHealthPacks + 
+                   ", Scaled to " + numHealthPacks + 
+                   " at difficulty " + difficultyManager.getDifficultyLevel());
+        }
+    }
     
     // Find platforms at different heights
     ArrayList<PlatformObject> lowPlatforms = findPlatformsAtHeight(height - 150, 30);

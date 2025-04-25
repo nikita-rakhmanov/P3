@@ -37,7 +37,7 @@ boolean useProceduralGeneration = true; // Flag to use procedural generation
 ArrayList<Ammo> ammoPickups = new ArrayList<Ammo>();
 LevelExit levelExit;
 Level2Exit level2Exit;
-int currentLevel = 2; // Current level number
+int currentLevel = 1; // Current level number
 boolean inLevelTransition = false;
 boolean cameraFocusOnExit = false;
 long cameraFocusStartTime = 0;
@@ -91,9 +91,12 @@ void setup() {
   // Create character in the middle
   character = new Character(new PVector(width / 2, height - 30));
 
-  // Create level generator and generate level
-  LevelGenerator levelGenerator = new LevelGenerator();
-  boolean levelGenerated = false;
+  // Initialize the difficulty manager
+  // difficultyManager = new DifficultyManager(currentDifficulty);
+
+  // // Create level generator and generate level
+  // LevelGenerator levelGenerator = new LevelGenerator(difficultyManager);
+  // boolean levelGenerated = false;
 
   // Initialize and generate a new level
   initializeLevel();
@@ -126,8 +129,11 @@ void initializeLevel() {
 }
 
 void initializeLevel1() {
+  // Initialize the difficulty manager
+  difficultyManager = new DifficultyManager(currentDifficulty);
+
   // Initialize level generator
-  levelGenerator = new LevelGenerator();
+  levelGenerator = new LevelGenerator(difficultyManager);
   
   if (useProceduralGeneration) {
     // Generate procedural level
@@ -729,10 +735,24 @@ void handleEnemyAttacks() {
   for (Enemy enemy : enemies) {
     if (enemy.isAttacking() && enemy.isInAttackRange(character) && 
         enemy.isInAttackCollisionFrame() && !character.isDead) {
+      
+      // Apply knockback force
       PVector force = PVector.sub(character.position, enemy.position).normalize().mult(10);
       force.y = -10;
       character.applyForce(force);
-      character.takeDamage(10);
+      
+      // Base damage value
+      int baseDamage = 10;
+      
+      // Scale damage based on difficulty if difficultyManager exists
+      int scaledDamage = baseDamage;
+      if (difficultyManager != null) {
+        scaledDamage = difficultyManager.getScaledEnemyDamage(baseDamage);
+        println("Scaled damage: " + scaledDamage);
+      }
+      
+      // Apply the scaled damage to the character
+      character.takeDamage(scaledDamage);
     }
   }
 }
